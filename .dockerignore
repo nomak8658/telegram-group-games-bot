@@ -1,0 +1,10 @@
+node_modules
+artifacts/*/node_modules
+artifacts/*/dist
+lib/*/node_modules
+lib/*/dist
+.git
+*.log
+leaderboard.json
+role_*.png
+/tmp
