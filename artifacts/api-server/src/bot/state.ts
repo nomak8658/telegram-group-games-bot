@@ -193,7 +193,42 @@ export interface BombState {
   bombTimer?: ReturnType<typeof setTimeout>;
 }
 
-export type GameState = MenVsMenState | TrustBreakState | MafiaState | OutsiderState | CircleState | BombState;
+// ─── Wire (قنبلة الثواني الأخيرة) ─────────────────────────────────────────────
+
+export type WireColor  = "red" | "blue" | "green" | "yellow";
+export type WireEffect = "defuse" | "explode" | "delay" | "speed";
+
+export interface WireEntry {
+  color:       WireColor;
+  effect:      WireEffect;
+  cut:         boolean;
+  cutByTeam?:  "A" | "B";
+}
+
+export interface WirePlayer {
+  id:        number;
+  username?: string;
+  firstName: string;
+  lastName:  string;
+}
+
+export interface WireState {
+  type:        "wire";
+  phase:       "joining" | "playing" | "done";
+  hostId:      number;
+  teamA:       Map<number, WirePlayer>;
+  teamB:       Map<number, WirePlayer>;
+  wires:       WireEntry[];
+  currentTeam: "A" | "B";
+  explodeAt:   number;
+  round:       number;
+  cutting:     boolean;
+  bombTimer?:  ReturnType<typeof setTimeout>;
+  voteTimer?:  ReturnType<typeof setTimeout>;
+  joinMsgId?:  number;
+}
+
+export type GameState = MenVsMenState | TrustBreakState | MafiaState | OutsiderState | CircleState | BombState | WireState;
 
 export const gameStates = new Map<number, GameState>();
 export const privateUserToGame = new Map<number, number>();
@@ -337,6 +372,8 @@ export function clearGame(chatId: number): void {
   } else if (s.type === "bomb") {
     [s.joinTimer, s.joinWarnTimer, s.bombTimer].forEach((t) => t && clearTimeout(t));
     for (const uid of s.players.keys()) privateUserToGame.delete(uid);
+  } else if (s.type === "wire") {
+    [s.bombTimer, s.voteTimer].forEach((t) => t && clearTimeout(t));
   }
 
   gameStates.delete(chatId);
