@@ -14,7 +14,7 @@ import {
 import {
   startMafia, handleMafiaJoin, handleMafiaForceStart,
   handleMafiaKill, handleMafiaProtect, handleMafiaInvestigate,
-  handleMafiaVote,
+  handleMafiaReady, handleMafiaVote,
 } from "./games/mafia.js";
 
 function menuMsg() {
@@ -329,6 +329,10 @@ export async function launchBot(): Promise<void> {
         const chatId = parseInt(parts[2], 10);
         const targetUid = parseInt(parts[3], 10);
         if (!isNaN(chatId) && !isNaN(targetUid)) { handleMafiaInvestigate(bot, ctx, chatId, targetUid); return; }
+      }
+      if (data.startsWith("mf:ready:")) {
+        const chatId = parseInt(data.slice("mf:ready:".length), 10);
+        if (!isNaN(chatId)) { handleMafiaReady(bot, ctx, chatId); return; }
       }
       if (data.startsWith("mf:vote:")) {
         const parts = data.split(":");
