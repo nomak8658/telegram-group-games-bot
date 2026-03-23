@@ -81,8 +81,11 @@ export interface MafiaState {
   // Per-round special actions
   doctorChoice?: number;
   detectiveChoice?: number;
-  actionsCompleted: Set<"doctor" | "detective">;
+  actionsCompleted: Set<"mafia" | "doctor" | "detective">;
   doctorLastSelfProtectRound?: number;
+  // Discussion ready-to-vote
+  discussReady: Set<number>;
+  discussMsgId?: number;
   // Voting
   dayVotes: Map<number, number>;
   dayVoteMsgId?: number;
@@ -97,7 +100,36 @@ export interface MafiaState {
   voteWarnTimer?: ReturnType<typeof setTimeout>;
 }
 
-export type GameState = MenVsMenState | TrustBreakState | MafiaState;
+// ─── Outsider ──────────────────────────────────────────────────────────────────
+
+export interface OutsiderPlayer {
+  id: number;
+  name: string;
+  username?: string;
+}
+
+export interface OutsiderState {
+  type: "outsider";
+  phase: "joining" | "hinting" | "voting" | "guessing" | "done";
+  players: Map<number, OutsiderPlayer>;
+  outsiderId: number | null;
+  topic: string;
+  category: string;
+  votes: Map<number, number>;
+  startedBy: number;
+  chatId: number;
+  voteMsgId?: number;
+  joinMsgId?: number;
+  joinTimer?: ReturnType<typeof setTimeout>;
+  joinWarnTimer?: ReturnType<typeof setTimeout>;
+  hintTimer?: ReturnType<typeof setTimeout>;
+  hintWarnTimer?: ReturnType<typeof setTimeout>;
+  voteTimer?: ReturnType<typeof setTimeout>;
+  voteWarnTimer?: ReturnType<typeof setTimeout>;
+  guessTimer?: ReturnType<typeof setTimeout>;
+}
+
+export type GameState = MenVsMenState | TrustBreakState | MafiaState | OutsiderState;
 
 export const gameStates = new Map<number, GameState>();
 export const privateUserToGame = new Map<number, number>();
@@ -225,6 +257,14 @@ export function clearGame(chatId: number): void {
       s.coordTimer, s.coordWarnTimer,
       s.discussTimer, s.discussWarnTimer,
       s.voteTimer, s.voteWarnTimer,
+    ].forEach((t) => t && clearTimeout(t));
+    for (const uid of s.players.keys()) privateUserToGame.delete(uid);
+  } else if (s.type === "outsider") {
+    [
+      s.joinTimer, s.joinWarnTimer,
+      s.hintTimer, s.hintWarnTimer,
+      s.voteTimer, s.voteWarnTimer,
+      s.guessTimer,
     ].forEach((t) => t && clearTimeout(t));
     for (const uid of s.players.keys()) privateUserToGame.delete(uid);
   }
