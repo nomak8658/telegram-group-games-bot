@@ -29,9 +29,8 @@ import {
   startBomb, handleBombJoin, handleBombForceStart, handleBombPass,
 } from "./games/bomb.js";
 import {
-  startWire, handleWireJoin, handleWireStart, handleWireCut,
-} from "./games/wire.js";
-import type { WireColor } from "./state.js";
+  startStopwatch, handleStopwatchJoin, handleStopwatchForceStart, handleStopwatchPress,
+} from "./games/stopwatch.js";
 import { generateTopCard } from "./topCard.js";
 
 function menuMsg() {
@@ -55,7 +54,7 @@ function menuKeyboard(chatId: number) {
     [Markup.button.callback("🫥  برا السالفة",             `menu:outsider:${chatId}`)],
     [Markup.button.callback("🔴  الدائرة القاتلة",        `menu:circle:${chatId}`)],
     [Markup.button.callback("💣  القنبلة المتنقلة",       `menu:bomb:${chatId}`)],
-    [Markup.button.callback("🔌  قنبلة الثواني الأخيرة",  `menu:wire:${chatId}`)],
+    [Markup.button.callback("⏰  سلك الموت الموقوت",       `menu:sw:${chatId}`)],
   ]);
 }
 
@@ -253,10 +252,10 @@ export async function launchBot(): Promise<void> {
     startBomb(bot, ctx.chat.id, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
   });
 
-  bot.command(["wire", "aslak", "أسلاك"], (ctx) => {
+  bot.command(["sw", "timer", "سلك", "death"], (ctx) => {
     if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
     const f = ctx.from;
-    startWire(bot, ctx.chat.id, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
+    startStopwatch(bot, ctx.chat.id, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
   });
 
   bot.command("menvsmen", (ctx) => {
@@ -375,14 +374,14 @@ export async function launchBot(): Promise<void> {
         return;
       }
 
-      if (data.startsWith("menu:wire:")) {
-        const chatId = parseInt(data.slice("menu:wire:".length), 10);
+      if (data.startsWith("menu:sw:")) {
+        const chatId = parseInt(data.slice("menu:sw:".length), 10);
         if (isNaN(chatId)) return;
         if (gameStates.has(chatId)) { await ctx.answerCbQuery("⚠️ في لعبة شغالة!").catch(() => {}); return; }
-        await ctx.answerCbQuery("🔌").catch(() => {});
+        await ctx.answerCbQuery("⏰").catch(() => {});
         ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
         const f = ctx.from;
-        startWire(bot, chatId, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
+        startStopwatch(bot, chatId, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
         return;
       }
 
@@ -527,24 +526,18 @@ export async function launchBot(): Promise<void> {
         if (!isNaN(chatId) && !isNaN(targetId)) { await handleBombPass(bot, ctx, chatId, targetId); return; }
       }
 
-      // ── قنبلة الثواني الأخيرة ──────────────────────────────────────────────────
-      if (data.startsWith("wire:joinA:")) {
-        const chatId = parseInt(data.slice("wire:joinA:".length), 10);
-        if (!isNaN(chatId)) { await handleWireJoin(bot, ctx, chatId, "A"); return; }
+      // ── سلك الموت الموقوت ──────────────────────────────────────────────────────
+      if (data.startsWith("sw:join:")) {
+        const chatId = parseInt(data.slice("sw:join:".length), 10);
+        if (!isNaN(chatId)) { await handleStopwatchJoin(bot, ctx, chatId); return; }
       }
-      if (data.startsWith("wire:joinB:")) {
-        const chatId = parseInt(data.slice("wire:joinB:".length), 10);
-        if (!isNaN(chatId)) { await handleWireJoin(bot, ctx, chatId, "B"); return; }
+      if (data.startsWith("sw:start:")) {
+        const chatId = parseInt(data.slice("sw:start:".length), 10);
+        if (!isNaN(chatId)) { await handleStopwatchForceStart(bot, ctx, chatId); return; }
       }
-      if (data.startsWith("wire:start:")) {
-        const chatId = parseInt(data.slice("wire:start:".length), 10);
-        if (!isNaN(chatId)) { await handleWireStart(bot, ctx, chatId); return; }
-      }
-      if (data.startsWith("wire:cut:")) {
-        const parts  = data.split(":");
-        const chatId = parseInt(parts[2], 10);
-        const color  = parts[3] as WireColor;
-        if (!isNaN(chatId) && color) { await handleWireCut(bot, ctx, chatId, color); return; }
+      if (data.startsWith("sw:press:")) {
+        const chatId = parseInt(data.slice("sw:press:".length), 10);
+        if (!isNaN(chatId)) { await handleStopwatchPress(bot, ctx, chatId); return; }
       }
 
       await ctx.answerCbQuery().catch(() => {});
