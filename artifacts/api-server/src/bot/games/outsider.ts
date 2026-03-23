@@ -193,19 +193,21 @@ function playerList(s: OutsiderState): string {
 function voteKb(chatId: number, s: OutsiderState) {
   const buttons = [...s.players.values()].map((p) => {
     const cnt = [...s.votes.values()].filter((v) => v === p.id).length;
-    const label = cnt > 0 ? `${dn(p)} (${cnt}) 🗳` : dn(p);
+    const label = cnt > 0 ? `${dnO(p)} (${cnt}) 🗳` : dnO(p);
     return [Markup.button.callback(label, `out:vote:${chatId}:${p.id}`)];
   });
   return Markup.inlineKeyboard(buttons);
 }
 
+// Use INDEX (0-9) in callback to stay well under Telegram's 64-byte limit
 function catSelectionKb(chatId: number, selected: Set<string>) {
-  const rows = CATEGORY_KEYS.map((k) => {
+  const rows = CATEGORY_KEYS.map((k, i) => {
     const on = selected.has(k);
-    return [Markup.button.callback(on ? `✅ ${k}` : `☑️ ${k}`, `out:cat:${chatId}:${encodeURIComponent(k)}`)];
+    // callback: "out:cat:{chatId}:{index}" — max ~25 bytes ✓
+    return [Markup.button.callback(on ? `✅ ${k}` : `☑️ ${k}`, `out:cat:${chatId}:${i}`)];
   });
   rows.push([Markup.button.callback("🎮 بدء الانضمام", `out:catdone:${chatId}`)]);
-  rows.push([Markup.button.callback("🌐 كل الفئات", `out:catall:${chatId}`)]);
+  rows.push([Markup.button.callback("🌐 كل الفئات",   `out:catall:${chatId}`)]);
   return Markup.inlineKeyboard(rows);
 }
 
@@ -290,7 +292,7 @@ export async function startOutsider(bot: Telegraf, ctx: Context) {
 
 // ─── Category toggle ────────────────────────────────────────────────────────────
 export async function handleOutsiderCatToggle(
-  bot: Telegraf, ctx: Context, chatId: number, catEncoded: string
+  bot: Telegraf, ctx: Context, chatId: number, catIndex: number
 ) {
   const uid = (ctx.from as any).id;
   const s = gameStates.get(chatId);
@@ -301,7 +303,9 @@ export async function handleOutsiderCatToggle(
     ctx.answerCbQuery("فقط من بدأ اللعبة يقدر يختار الفئات!").catch(() => {}); return;
   }
 
-  const cat = decodeURIComponent(catEncoded);
+  const cat = CATEGORY_KEYS[catIndex];
+  if (!cat) { ctx.answerCbQuery("⚠️ فئة غير صالحة").catch(() => {}); return; }
+
   if (s.selectedCategories.has(cat)) {
     if (s.selectedCategories.size <= 1) {
       ctx.answerCbQuery("لازم تبقى فئة واحدة على الأقل!").catch(() => {}); return;
