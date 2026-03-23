@@ -1,421 +1,723 @@
 import { Telegraf, Markup, Context } from "telegraf";
-import { gameStates, clearGame, privateUserToGame, recordWin, recordGame, dn, esc, type OutsiderState, type OutsiderPlayer } from "../state.js";
+import {
+  gameStates, clearGame, privateUserToGame, recordWin, recordGame,
+  esc, type OutsiderState, type OutsiderPlayer, type Player,
+} from "../state.js";
+import { generateOutsiderCard, generateInsiderCard } from "../outsiderCard.js";
 import { logger } from "../../lib/logger.js";
 
-// ─── Timing ────────────────────────────────────────────────────────────────────
-const JOIN_MS        = 60_000;
-const JOIN_WARN_MS   = 40_000;
-const HINT_MS        = 120_000;
-const HINT_WARN_MS   =  80_000;
-const VOTE_MS        =  60_000;
-const VOTE_WARN_MS   =  30_000;
-const GUESS_MS       =  40_000;
-const MIN_PLAYERS    = 3;
+function dnO(p: OutsiderPlayer): string {
+  const full = [p.firstName, p.lastName].filter(Boolean).join(" ") || String(p.id);
+  return p.username ? `@${p.username}` : full;
+}
 
-// ─── Topics ────────────────────────────────────────────────────────────────────
-const TOPICS: Record<string, string[]> = {
+function toPlayer(p: OutsiderPlayer): Player {
+  return { id: p.id, username: p.username, name: dnO(p) };
+}
+
+// ─── Timing ────────────────────────────────────────────────────────────────────
+const JOIN_MS       = 60_000;
+const JOIN_WARN_MS  = 40_000;
+const HINT_MS       = 120_000;
+const HINT_WARN_MS  =  80_000;
+const VOTE_MS       =  60_000;
+const VOTE_WARN_MS  =  30_000;
+const GUESS_MS      =  45_000;
+const MIN_PLAYERS   = 3;
+
+// ─── Topic Database ─────────────────────────────────────────────────────────────
+export const ALL_TOPICS: Record<string, string[]> = {
   "🐾 حيوانات": [
-    "قطة","كلب","أسد","نمر","فيل","زرافة","دلفين","قرش","ببغاء","تمساح",
-    "حصان","ذئب","قرد","ثعلب","أرنب","بطريق","طاووس","عقرب","نسر","فهد",
-    "خروف","بقرة","ديك","حمامة","صقر","سلحفاة","ثعبان","غزال","حمار","جمل",
-    "دب","كنغر","عصفور","سمكة","قنفذ","خفاش","ضفدع","وحيد القرن","ضب","وزغ",
-    "حمار وحشي","أخطبوط","جراد البحر","طاووس","بجع","لقلق","بومة","خروف","تيس","عنز",
+    // أليفة وبيتية
+    "قطة","كلب","أرنب","هامستر","ببغاء","سمكة زينة","سلحفاة","فأر أبيض","قنديل البحر","حمامة",
+    // غابة وبرية
+    "أسد","نمر","فهد","دب","ذئب","ثعلب","ضبع","وشق","جرو الثعلب","قرد",
+    "شمبانزي","غوريلا","أورانجوتان","قرد المكاك","قردة البابون","بابون","ليمور","نمس","غرير","زباد",
+    // أفريقية وآسيوية
+    "فيل","زرافة","حصان نهري","كركدن","وحيد القرن","جاموس","زيبرا","حمار وحشي","نو","أيل",
+    "غزال","وعل","ظبي","مها","مهر","حمار","بغل","جمل","ناقة","لاما",
+    // طيور
+    "نسر","صقر","باز","طاووس","بجع","فلامينغو","بومة","لقلق","طوقان","قطرس",
+    "بطة","إوزة","ديك رومي","ديك","دجاجة","حجل","يمامة","عندليب","تمساح المنقار","سنونو",
+    // بحرية
+    "دلفين","حوت","حوت أحدب","قرش","سمكة مارلن","أسد البحر","فقمة","فرس البحر","سلطعون","جراد البحر",
+    "أخطبوط","حبار","قنديل بحر","نجم البحر","قنفذ البحر","حصان البحر","سمكة القرش الأبيض","تونة","سردين","قباقب",
+    // زواحف وحشرات
+    "تمساح","ثعبان","ثعبان الكوبرا","ثعبان الأصلة","أفعى","سحلية","حرباء","غكو","ورل","ضب",
+    "نملة","نحلة","فراشة","دودة القز","خنفساء","جندب","صرصار","عقرب","بعوضة","ذبابة",
+    // نادرة وغريبة
+    "بانغولين","اردفارك","كومودو","تاسمانيا","كيوي","ألباكا","ياك","ثور الماء","أبو منجل","كواكبرا",
+    "قنفذ","خفاش","ضفدع","ضفدع السم","سلمندر","عقرب صحراء","أبو بريص","حمار البحر","حمار الوحش","الطيهوج",
   ],
   "🍕 أكلات": [
-    "بيتزا","برغر","شاورما","كبسة","مندي","فلافل","حمص","كنافة","بقلاوة","مكرونة",
-    "سوشي","تاكو","نودلز","دونر","هريسة","جريش","مرقوق","مطبق","سمبوسة","لقيمات",
-    "محلبية","أوزي","فريدة","ملوخية","كبد","مشاوي","دجاج","سلمون","تمر","خبز",
-    "شكولاته","آيس كريم","وافل","بان كيك","دونات","كرواسون","تشيز كيك","تيراميسو","مافن","بروتشيتا",
-    "لحم بعجين","قيمر","كليجا","حلوى عربية","رز بحليب","أم علي","بسبوسة","حلوى تمر","جلاش","مهلبية",
+    // خليجي وسعودي
+    "كبسة","مندي","مرقوق","جريش","هريسة","مطبق","مجبوس","بالو","سليق","عصيد",
+    "كليجا","قهوة عربية","محلبية","لقيمات","مطبق","خبيصة","سمبوسة","حلوى عمانية","كنافة ناعمة","قيمر",
+    // شرق أوسط
+    "شاورما","فلافل","حمص","فتة","منسف","مسخن","مقلوبة","كشك","فريكة","كنافة",
+    "بقلاوة","معمول","مامول","حلاوة طحينية","طحينة","مسبحة","فول مدمس","طعمية","كوارع","هريس",
+    // إيطالي وغربي
+    "بيتزا","باستا","لازانيا","ريزوتو","برغر","هوت دوج","فرنش فرايز","ناجتس","ستيك","شيش طاووق",
+    "كرواسون","بان كيك","وافل","دونات","كيك","براونيز","مافن","تشيز كيك","تيراميسو","بروفيترول",
+    // آسيوي
+    "سوشي","رامن","تاكو","بريتو","بيريياني","تندوري","بادثاي","دمبلينج","موموس","فو",
+    "نودلز","كيمتشي","بيبيمباب","ساشيمي","مستو","توفو","دمبلينج قلي","باو","أونيغيري","ماتشا كيك",
+    // حلويات ومشروبات
+    "شكولاتة","آيس كريم","جيلاتو","سوفلية","كريم برولية","مولتن كيك","كانيلي","إكلير","مليونيرز شورت كيك","رقائق",
+    "قهوة","كابتشينو","لاتيه","شاي أخضر","شاي هندي","كوكاكولا","عصير برتقال","لبن","لاسي","سموذي",
+    // متنوع
+    "سمك مشوي","دجاج مقلي","لحم بعجين","فطير","بيض","فول","عدس","تبولة","فتوش","سلطة",
   ],
   "🏙️ أماكن": [
-    "برج إيفل","الكعبة","بيج بن","برج خليفة","تمثال الحرية","الأهرامات","سور الصين العظيم","برج بيزا","كولوسيوم روما","أنغكور وات",
-    "مطار","مستشفى","ملعب كرة","سينما","مكتبة","حديقة حيوان","شاطئ","جبل","صحراء","غابة",
-    "مطعم","فندق","ملاهي","متحف","حديقة","محطة قطار","ميناء","سوق","جامعة","مدرسة",
-    "الرياض","دبي","باريس","لندن","طوكيو","نيويورك","مكة","المدينة المنورة","إسطنبول","روما",
+    // معالم عالمية
+    "برج إيفل","الكعبة المشرفة","بيج بن","برج خليفة","تمثال الحرية","الأهرامات","سور الصين العظيم",
+    "برج بيزا","كولوسيوم روما","أنغكور وات","تاج محل","أبو سمبل","ماتشو بيتشو","بيت لحم","أثينا القديمة",
+    // مدن عربية
+    "مكة المكرمة","المدينة المنورة","الرياض","دبي","أبوظبي","مسقط","الكويت","الدوحة","بغداد","دمشق",
+    "القاهرة","الإسكندرية","عمّان","بيروت","الخرطوم","الدار البيضاء","تونس","الجزائر","طرابلس","جدة",
+    // مدن عالمية
+    "لندن","باريس","طوكيو","نيويورك","روما","برلين","مدريد","بكين","موسكو","سيدني",
+    "تورنتو","دبلن","أمستردام","زيوريخ","سنغافورة","بانكوك","إسطنبول","أثينا","برشلونة","ميلانو",
+    // أماكن عامة
+    "مطار","مستشفى","ملعب كرة قدم","سينما","مكتبة","حديقة حيوان","متحف","مسجد","كنيسة","كاتدرائية",
+    "محطة قطار","ميناء","سوق","جامعة","مدرسة","فندق","مطعم","مقهى","دار أوبرا","قلعة",
+    // طبيعة وجغرافيا
+    "شلال نياغارا","جراند كانيون","فيوردات النرويج","صحراء الصحراء","غابة الأمازون","جزر المالديف",
+    "قمة إيفرست","بحيرة فيكتوريا","نهر النيل","نهر الأمازون","البحر الميت","القطب الشمالي","هاواي","أيسلندا",
   ],
   "⚽ رياضة": [
-    "كرة القدم","كرة السلة","سباحة","تنس","جولف","ملاكمة","عدو","رفع أثقال","فروسية","بولينغ",
-    "تايكوندو","جودو","شطرنج","كرة طائرة","كريكيت","سنوكر","رماية","غوص","تسلق","دراجات",
-    "سباق سيارات","تنس طاولة","بيسبول","رغبي","هوكي","جمباز","تزلج","رمح","قرص","مصارعة",
+    // كرة
+    "كرة القدم","كرة السلة","كرة الطائرة","كرة القدم الأمريكية","كرة اليد","كرة الماء","كرة الطاولة","البولينغ","الغولف","كرة القاعدة",
+    // مضرب
+    "تنس","تنس طاولة","بادمنتون","اسكواش","الريشة الطائرة","البيكلبول","كروكيه","الكريكيت","الهوكي","الرغبي",
+    // مائي وجوي
+    "السباحة","الغوص","الإبحار","التجديف","ركوب الأمواج","الغطس","الزوارق","الكانو","البواخر الريحية","القفز المظلي",
+    // قتالي ورياضي
+    "الملاكمة","الكاراتيه","الجودو","التايكوندو","الكونغ فو","المصارعة","السومو","الجيو جيتسو","الكيك بوكسينغ","الفنون المختلطة",
+    // شتوي وجبلي
+    "التزلج على الجليد","التزلج على الثلج","السنوبورد","الهوكي على الجليد","التزلج الريفي","التسلق","الرياضة الجبلية",
+    // أولمبي
+    "رفع الأثقال","الجمباز","المبارزة","الرماية","الفروسية","سباق الخيل","الدراجات","العدو","القفز العالي","الثلاثي",
+    // ذهني وإلكتروني
+    "الشطرنج","الداما","ألعاب الورق","ألعاب الفيديو","السباق الإلكتروني","الرياضة الإلكترونية",
   ],
   "📱 تقنية": [
-    "آيفون","لابتوب","يوتيوب","تيك توك","انستقرام","تويتر","بلستيشن","إكس بوكس","درون","سيارة كهربائية",
-    "ساعة ذكية","ذكاء اصطناعي","روبوت","واي فاي","بلوتوث","هاتف قديم","طابعة","كاميرا","تلفزيون","راديو",
-    "ماكبوك","سامسونج","تيسلا","ميتا","نتفليكس","سبوتيفاي","زووم","شات جي بي تي","أمازون","قوقل",
+    // أجهزة
+    "آيفون","آيباد","ماكبوك","سامسونج جالاكسي","هواوي","شاومي","لابتوب","حاسب مكتبي","ساعة ذكية","نظارة ذكية",
+    "سماعة لاسلكية","هيدفون","لوحة مفاتيح","ماوس","شاشة","طابعة ثلاثية الأبعاد","روبوت","درون","كاميرا","تلفزيون ذكي",
+    // تطبيقات ومنصات
+    "يوتيوب","تيك توك","انستقرام","تويتر/إكس","سناب شات","واتساب","تيليغرام","فيسبوك","لينكدإن","بينترست",
+    "نتفليكس","سبوتيفاي","ديزني بلاس","أمازون برايم","آبل تي في","شاهد","يوتيوب ميوزك","ساوند كلاود","أنغامي","ديزر",
+    // ألعاب
+    "بلايستيشن","إكس بوكس","نينتندو سويتش","فورتنايت","ماينكرافت","جي تي إيه","فيفا","كول أوف ديوتي","بابجي","فالورانت",
+    // ذكاء اصطناعي وتقنية
+    "شات جي بي تي","جيميناي","كلود","ميتا إيه آي","مدجورني","دال إي","ذكاء اصطناعي","تعلم الآلة","روبوتيكس",
+    // شركات وخدمات
+    "أبل","قوقل","مايكروسوفت","أمازون","ميتا","تيسلا","نفيديا","سامسونج","إنتل","إكس بوكس",
+    "كلاود","واي فاي","بلوتوث","VPN","بلوكشين","كريبتو","NFT","ميتافيرس","أوبر","كريم",
   ],
   "🎬 ترفيه": [
-    "باب الحارة","نمر بن عدوان","ذيب","بياض الثلج","الأسد الملك","شيرلوك هولمز","المندلوريان","الصديقون","بريكينغ باد","غيم أوف ثرونز",
-    "هاري بوتر","أفاتار","تيتانيك","الجوكر","الأخضر","ترانسفورمرز","سبايدر مان","باتمان","سوبرمان","ثانوس",
-    "يوتيوبر","مذيع","ممثل","مغني","كوميدي","مسلسل","فيلم رعب","مسرحية","أنيمي","كارتون",
+    // مسلسلات عربية
+    "باب الحارة","نمر بن عدوان","طاش ما طاش","سيلفي","واي فاي","حارة كول","دفعة بيروت","مسمار جحا","صاحبي الغالي","يوميات وهج",
+    // أفلام عالمية
+    "أفاتار","تيتانيك","الجوكر","أفنجرز","هاري بوتر","ذيب","بنوكيو","بلاك بانثر","توب غان","إنترستيلار",
+    "الملك الأسد","بياض الثلج","علاء الدين","موانا","زوتوبيا","كوكو","باحثة الفضاء","إنسايد آوت","الترانزفورمرز",
+    // شخصيات وأبطال
+    "سبايدر مان","باتمان","سوبرمان","آيرون مان","كابتن أمريكا","ثانوس","جوكر","مادالوريان","يودا","دارث فيدر",
+    "شيرلوك هولمز","جيمس بوند","إيثان هانت","جاك سبارو","إنديانا جونز","سيمبا","دوري","شريك","بوز لايتير",
+    // مسلسلات عالمية
+    "بريكينغ باد","غيم أوف ثرونز","ستوريج وورز","بيبر بيغ","المندلوريان","الويتشر","سكويد غيم","لوبان","الورقة","مني هايست",
+    // شخصيات كرتون
+    "توم وجيري","سبونجبوب","ميكي ماوس","دونالد داك","كوالا لومبور","باغز باني","داعي الإسلام","أنيمي","شينشان","دورا",
+    // صناعة الترفيه
+    "يوتيوبر","مذيع","ممثل","مغني","راقص","مؤلف","منتج","مخرج","فنان كوميدي","مصمم أزياء",
   ],
   "🌍 أشياء عامة": [
+    // مواصلات
     "سيارة","دراجة","طائرة","سفينة","قطار","حافلة","دراجة نارية","مروحية","غواصة","صاروخ",
-    "قلم","كتاب","كرسي","طاولة","باب","نافذة","مفتاح","ساعة","حذاء","قبعة",
-    "شمس","قمر","نجمة","سحابة","مطر","ثلج","رعد","قوس قزح","بحر","نهر",
-    "ذهب","فضة","ألماس","معدن","خشب","حجر","زجاج","بلاستيك","قماش","ورق",
+    "تاكسي","أوبر","مترو","ترام","قارب","يخت","طائرة شراعية","دراجة هوائية","سكوتر","سكيت بورد",
+    // منزل
+    "قلم","كتاب","كرسي","طاولة","باب","نافذة","مفتاح","ساعة","تلفزيون","ثلاجة",
+    "سرير","وسادة","بطانية","خزانة","حوض","مرآة","مصباح","مكنسة","غسالة","مكيف",
+    // ملابس وإكسسوار
+    "حذاء","قبعة","نظارة","ساعة","خاتم","قلادة","حقيبة","حزام","كرافة","عطر",
+    "معطف","جاكيت","تيشيرت","جينز","ثوب","كرتة","دشداشة","عبايا","نقاب","عمامة",
+    // طبيعة
+    "شمس","قمر","نجمة","سحابة","مطر","ثلج","رعد","برق","قوس قزح","بركان",
+    "جبل","نهر","بحيرة","شلال","صحراء","غابة","جزيرة","كهف","مرجان","رمل",
+    // مواد وخامات
+    "ذهب","فضة","ألماس","حجر كريم","برونز","حديد","نحاس","ألمنيوم","خشب","رخام",
+    "زجاج","بلاستيك","قماش","جلد","ورق","طين","إسفنج","كربون","سيليكون","سيراميك",
+    // متنوع
+    "بالون","شمعة","كاميرا","مقص","مطرقة","مفتاح ربط","فرشاة","مسطرة","آلة حاسبة","بطاقة",
+  ],
+  "💼 مهن ووظائف": [
+    "طبيب","ممرض","معلم","مهندس","محامي","قاضي","طيار","رائد فضاء","شرطي","عسكري",
+    "طباخ شيف","حلاق","نجار","حداد","كهربائي","سباك","رسام","مصور","مصمم","مؤلف",
+    "مذيع","صحفي","ممثل","مغني","رياضي","مدرب","حارس أمن","سائق","موزع","محاسب",
+    "علماء فضاء","بيطري","صيدلاني","أرخيولوجيست","مترجم","مستشار","مدير","سفير","دبلوماسي","رئيس وزراء",
+    "كاتب","شاعر","فيلسوف","عالم دين","إمام","قسيس","حاخام","معالج نفسي","اجتماعي","خيري",
+    "ميكانيكي","سائق شاحنة","بحار","صياد","مزارع","راعي أغنام","عطار","فلكي","موسيقار","عازف",
+  ],
+  "😂 مواقف وحالات": [
+    "نسيت المحفظة","فلتت منك ضحكة","وقفت أمام الشيف","فاتتك الرحلة","كسرت شيء عند أحد",
+    "اتصادمت بجدار","وقعت أمام الناس","نمت على المنبّه","وصلت متأخر للامتحان","ضيعت مفاتيحك",
+    "اتصل بك الغلط","وقعت الهاتف في المي","أكلت الأكل الحار","ارتديت ملابسك معكوسة","لقيت فلوس في جيبك",
+    "فضلت تقود دون بنزين","أكلت من صحن غيرك","انقطع النت في أهم لحظة","خسرت في لعبة","حلمت بحلم غريب",
+    "نسيت كلمة بالمحادثة","ضحكت في وقت غلط","اتصادمت مع أحد","نسيت الشاحن","انكسر كرسيك",
+  ],
+  "🎨 فنون وإبداع": [
+    "لوحة زيتية","رسم رصاص","خط عربي","نحت","تصوير","موسيقى","غناء","رقص","شعر","رواية",
+    "عزف بيانو","عزف جيتار","عزف طبلة","موسيقى كلاسيكية","راب","أغنية شعبية","مسرحية","أوبرا","باليه","فلامنكو",
+    "تصميم جرافيك","تصميم داخلي","عمارة","أنيمي","كومكس","رسوم متحركة","فوتوغرافيا","سينما تجريبية","وثائقي","مسلسل",
   ],
 };
 
-function pickTopic(): { category: string; topic: string } {
-  const cats = Object.keys(TOPICS);
+// ─── All category keys for display ───────────────────────────────────────────
+export const CATEGORY_KEYS = Object.keys(ALL_TOPICS);
+
+// ─── Pick topic from selected categories ─────────────────────────────────────
+function pickTopic(selectedCats: string[]): { category: string; topic: string } {
+  const cats = selectedCats.length > 0 ? selectedCats : CATEGORY_KEYS;
   const category = cats[Math.floor(Math.random() * cats.length)];
-  const list = TOPICS[category];
+  const list = ALL_TOPICS[category] ?? ALL_TOPICS[CATEGORY_KEYS[0]];
   const topic = list[Math.floor(Math.random() * list.length)];
   return { category, topic };
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 function playerList(s: OutsiderState): string {
-  return [...s.players.values()].map((p) => `• ${esc(dn(p))}`).join("\n");
+  return [...s.players.values()].map((p) => `• ${esc(dnO(p))}`).join("\n");
 }
 
 function voteKb(chatId: number, s: OutsiderState) {
   const buttons = [...s.players.values()].map((p) => {
     const cnt = [...s.votes.values()].filter((v) => v === p.id).length;
-    const label = cnt > 0 ? `${dn(p)} (${cnt})` : dn(p);
+    const label = cnt > 0 ? `${dn(p)} (${cnt}) 🗳` : dn(p);
     return [Markup.button.callback(label, `out:vote:${chatId}:${p.id}`)];
   });
   return Markup.inlineKeyboard(buttons);
 }
 
-// ─── Start ─────────────────────────────────────────────────────────────────────
-export async function startOutsider(bot: Telegraf, ctx: Context): Promise<void> {
-  const chatId = ctx.chat!.id;
+function catSelectionKb(chatId: number, selected: Set<string>) {
+  const rows = CATEGORY_KEYS.map((k) => {
+    const on = selected.has(k);
+    return [Markup.button.callback(on ? `✅ ${k}` : `☑️ ${k}`, `out:cat:${chatId}:${encodeURIComponent(k)}`)];
+  });
+  rows.push([Markup.button.callback("🎮 بدء الانضمام", `out:catdone:${chatId}`)]);
+  rows.push([Markup.button.callback("🌐 كل الفئات", `out:catall:${chatId}`)]);
+  return Markup.inlineKeyboard(rows);
+}
+
+// ─── Send role cards via DM ────────────────────────────────────────────────────
+async function sendRoleCards(
+  bot: Telegraf,
+  s: OutsiderState,
+  chatId: number
+) {
+  const insiders = [...s.players.values()].filter((p) => p.id !== s.outsiderId);
+  const outsider = s.players.get(s.outsiderId!);
+
+  // Outsider card
+  if (outsider) {
+    try {
+      const buf = await generateOutsiderCard(dnO(outsider));
+      await bot.telegram.sendPhoto(outsider.id, { source: buf }, {
+        caption: `🫥 <b>أنت برا السالفة!</b>\n\nالكل يعرف كلمة سرية <b>ما تعرفها أنت</b>.\nاستمع للتلميحات واكتشف الكلمة!`,
+        parse_mode: "HTML",
+      });
+    } catch {
+      await bot.telegram.sendMessage(outsider.id,
+        `🫥 <b>أنت برا السالفة!</b>\n\nالكل يعرف كلمة سرية ما تعرفها أنت.\nاستمع للتلميحات واكتشف الكلمة!`,
+        { parse_mode: "HTML" }
+      ).catch(() => {});
+    }
+  }
+
+  // Insider cards
+  for (const p of insiders) {
+    try {
+      const buf = await generateInsiderCard(dnO(p), s.category!, s.topic!);
+      await bot.telegram.sendPhoto(p.id, { source: buf }, {
+        caption: `✅ <b>أنت داخل السالفة!</b>\n\nلمّح على الكلمة بذكاء — <b>لا تقولها مباشرة!</b> 🎯`,
+        parse_mode: "HTML",
+      });
+    } catch {
+      await bot.telegram.sendMessage(p.id,
+        `✅ <b>أنت داخل السالفة!</b>\n\nالفئة: ${s.category}\nالكلمة: <b>${esc(s.topic!)}</b>\n\nلمّح بذكاء ولا تقولها مباشرة! 🎯`,
+        { parse_mode: "HTML" }
+      ).catch(() => {});
+    }
+  }
+}
+
+// ─── Start game ────────────────────────────────────────────────────────────────
+export async function startOutsider(bot: Telegraf, ctx: Context) {
+  const chatId = (ctx.chat as any).id;
   if (gameStates.has(chatId)) {
-    await ctx.reply("⚠️ فيه لعبة شغالة الحين — خلّوها تنتهي أو /endgame", { parse_mode: "HTML" });
+    ctx.reply("⚠️ في لعبة شغّالة! أنهوها أولاً.").catch(() => {});
     return;
   }
-  const from = ctx.from!;
-  const starter: OutsiderPlayer = {
-    id: from.id,
-    name: [from.first_name, from.last_name].filter(Boolean).join(" "),
-    username: from.username,
-  };
+
+  const uid   = (ctx.from as any).id;
+  const uname = (ctx.from as any).username;
+  const fname = (ctx.from as any).first_name ?? "";
+  const lname = (ctx.from as any).last_name ?? "";
 
   const s: OutsiderState = {
     type: "outsider",
-    phase: "joining",
-    players: new Map([[from.id, starter]]),
+    phase: "selecting",
+    players: new Map(),
     outsiderId: null,
-    topic: "",
-    category: "",
+    topic: null,
+    category: null,
     votes: new Map(),
-    startedBy: from.id,
-    chatId,
+    hostId: uid,
+    selectedCategories: new Set(CATEGORY_KEYS),
+    joinMsgId: null,
   };
   gameStates.set(chatId, s);
 
-  const sent = await bot.telegram.sendMessage(
-    chatId,
-    `🫥 <b>برا السالفة!</b>\n\n` +
-    `${esc(dn(starter))} فتح اللعبة!\n\n` +
-    `<b>طريقة اللعب:</b>\n` +
-    `• شخص واحد بيكون <b>برا السالفة</b> ما يعرف الموضوع\n` +
-    `• الباقي يعرفون الموضوع ويعطون تلميحات ذكية\n` +
-    `• الجميع يصوّت على مين يظن إنه برا السالفة\n\n` +
-    `👥 اللاعبون (1):\n• ${esc(dn(starter))}\n\n` +
-    `⏳ <b>60 ثانية للانضمام</b>`,
-    { parse_mode: "HTML", ...Markup.inlineKeyboard([[Markup.button.callback("🙋 انضم للعبة", `out:join:${chatId}`)]]) }
+  const msg = await ctx.reply(
+    `🫥 <b>برا السالفة</b> — اختر الفئات\n\n` +
+    `اختر الفئات اللي تبغى تلعبها، ثم اضغط <b>بدء الانضمام</b>!\n\n` +
+    `✅ = مفعّلة  |  ☑️ = معطّلة`,
+    { parse_mode: "HTML", ...catSelectionKb(chatId, s.selectedCategories) }
   );
-  s.joinMsgId = sent.message_id;
 
-  s.joinWarnTimer = setTimeout(() => {
-    const cur = gameStates.get(chatId) as OutsiderState | undefined;
-    if (!cur || cur.phase !== "joining") return;
-    bot.telegram.sendMessage(chatId, `⚡ <b>20 ثانية متبقية للانضمام!</b>`, { parse_mode: "HTML" }).catch(() => {});
+  s.joinMsgId = msg.message_id;
+}
+
+// ─── Category toggle ────────────────────────────────────────────────────────────
+export async function handleOutsiderCatToggle(
+  bot: Telegraf, ctx: Context, chatId: number, catEncoded: string
+) {
+  const uid = (ctx.from as any).id;
+  const s = gameStates.get(chatId);
+  if (!s || s.type !== "outsider" || s.phase !== "selecting") {
+    ctx.answerCbQuery("⚠️ ما في لعبة").catch(() => {}); return;
+  }
+  if (uid !== s.hostId) {
+    ctx.answerCbQuery("فقط من بدأ اللعبة يقدر يختار الفئات!").catch(() => {}); return;
+  }
+
+  const cat = decodeURIComponent(catEncoded);
+  if (s.selectedCategories.has(cat)) {
+    if (s.selectedCategories.size <= 1) {
+      ctx.answerCbQuery("لازم تبقى فئة واحدة على الأقل!").catch(() => {}); return;
+    }
+    s.selectedCategories.delete(cat);
+  } else {
+    s.selectedCategories.add(cat);
+  }
+
+  const count = [...s.selectedCategories.values()].reduce(
+    (a, k) => a + (ALL_TOPICS[k]?.length ?? 0), 0
+  );
+
+  await ctx.editMessageText(
+    `🫥 <b>برا السالفة</b> — اختر الفئات\n\n` +
+    `الفئات المختارة: <b>${s.selectedCategories.size}</b> | المواضيع المتاحة: <b>${count}</b>\n\n` +
+    `✅ = مفعّلة  |  ☑️ = معطّلة`,
+    { parse_mode: "HTML", ...catSelectionKb(chatId, s.selectedCategories) }
+  ).catch(() => {});
+
+  ctx.answerCbQuery().catch(() => {});
+}
+
+// ─── Select all categories ──────────────────────────────────────────────────────
+export async function handleOutsiderCatAll(
+  bot: Telegraf, ctx: Context, chatId: number
+) {
+  const uid = (ctx.from as any).id;
+  const s = gameStates.get(chatId);
+  if (!s || s.type !== "outsider" || s.phase !== "selecting") {
+    ctx.answerCbQuery().catch(() => {}); return;
+  }
+  if (uid !== s.hostId) {
+    ctx.answerCbQuery("فقط من بدأ اللعبة!").catch(() => {}); return;
+  }
+
+  CATEGORY_KEYS.forEach((k) => s.selectedCategories.add(k));
+  const count = [...s.selectedCategories.values()].reduce((a, k) => a + (ALL_TOPICS[k]?.length ?? 0), 0);
+
+  await ctx.editMessageText(
+    `🫥 <b>برا السالفة</b> — اختر الفئات\n\n` +
+    `الفئات المختارة: <b>${s.selectedCategories.size}</b> | المواضيع المتاحة: <b>${count}</b>\n\n` +
+    `✅ = مفعّلة  |  ☑️ = معطّلة`,
+    { parse_mode: "HTML", ...catSelectionKb(chatId, s.selectedCategories) }
+  ).catch(() => {});
+
+  ctx.answerCbQuery("✅ كل الفئات مفعّلة").catch(() => {});
+}
+
+// ─── Confirm category selection → start join phase ─────────────────────────────
+export async function handleOutsiderCatDone(
+  bot: Telegraf, ctx: Context, chatId: number
+) {
+  const uid   = (ctx.from as any).id;
+  const uname = (ctx.from as any).username;
+  const fname = (ctx.from as any).first_name ?? "";
+  const lname = (ctx.from as any).last_name ?? "";
+  const s = gameStates.get(chatId);
+
+  if (!s || s.type !== "outsider" || s.phase !== "selecting") {
+    ctx.answerCbQuery().catch(() => {}); return;
+  }
+  if (uid !== s.hostId) {
+    ctx.answerCbQuery("فقط من بدأ اللعبة يقدر يبدأ الانضمام!").catch(() => {}); return;
+  }
+
+  s.phase = "joining";
+
+  // Add host as first player
+  s.players.set(uid, { id: uid, username: uname, firstName: fname, lastName: lname });
+  privateUserToGame.set(uid, chatId);
+
+  const catList = [...s.selectedCategories].join("  ");
+  const joinMsg = await ctx.editMessageText(
+    `🫥 <b>برا السالفة</b>\n\n` +
+    `الفئات: ${catList}\n\n` +
+    `اضغط <b>انضم</b> للمشاركة!\n\n` +
+    `👤 اللاعبون:\n• ${esc(dnO({ username: uname, firstName: fname, lastName: lname } as any))}\n\n` +
+    `<i>تنتهي الدعوة بعد 60 ثانية</i>`,
+    {
+      parse_mode: "HTML",
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback("➕ انضم", `out:join:${chatId}`)],
+        [Markup.button.callback("▶️ ابدأ الآن", `out:fstart:${chatId}`)],
+      ]),
+    }
+  ).catch(() => null);
+
+  ctx.answerCbQuery().catch(() => {});
+
+  // Warn at 40s
+  setTimeout(async () => {
+    const gs = gameStates.get(chatId);
+    if (!gs || gs.type !== "outsider" || gs.phase !== "joining") return;
+    bot.telegram.sendMessage(chatId,
+      `⏳ <b>تبقت 20 ثانية!</b> (${gs.players.size} لاعب)`,
+      { parse_mode: "HTML" }
+    ).catch(() => {});
   }, JOIN_WARN_MS);
 
-  s.joinTimer = setTimeout(() => forceStart(bot, chatId), JOIN_MS);
+  // Auto-start
+  setTimeout(() => launchGame(bot, chatId), JOIN_MS);
 }
 
 // ─── Join ──────────────────────────────────────────────────────────────────────
-export function handleOutsiderJoin(bot: Telegraf, ctx: Context, chatId: number): void {
-  const s = gameStates.get(chatId) as OutsiderState | undefined;
+export async function handleOutsiderJoin(
+  bot: Telegraf, ctx: Context, chatId: number
+) {
+  const uid   = (ctx.from as any).id;
+  const uname = (ctx.from as any).username;
+  const fname = (ctx.from as any).first_name ?? "";
+  const lname = (ctx.from as any).last_name ?? "";
+  const s = gameStates.get(chatId);
+
   if (!s || s.type !== "outsider" || s.phase !== "joining") {
-    ctx.answerCbQuery("⚠️ الانضمام منتهي").catch(() => {}); return;
+    ctx.answerCbQuery("❌ التسجيل مو متاح الحين").catch(() => {}); return;
   }
-  const from = ctx.from!;
-  if (s.players.has(from.id)) { ctx.answerCbQuery("✅ أنت منضم").catch(() => {}); return; }
-  if (s.players.size >= 12) { ctx.answerCbQuery("🚫 اللعبة ممتلئة (12 لاعب)").catch(() => {}); return; }
-
-  s.players.set(from.id, {
-    id: from.id,
-    name: [from.first_name, from.last_name].filter(Boolean).join(" "),
-    username: from.username,
-  });
-  ctx.answerCbQuery("✅ انضممت!").catch(() => {});
-
-  const list = playerList(s);
-  if (s.joinMsgId) {
-    bot.telegram.editMessageText(
-      chatId, s.joinMsgId, undefined,
-      `🫥 <b>برا السالفة!</b>\n\n` +
-      `👥 اللاعبون (${s.players.size}):\n${list}\n\n` +
-      `⏳ في انتظار المزيد...`,
-      { parse_mode: "HTML", ...Markup.inlineKeyboard([[Markup.button.callback("🙋 انضم للعبة", `out:join:${chatId}`)]]) }
-    ).catch(() => {});
+  if (s.players.has(uid)) {
+    ctx.answerCbQuery("أنت مسجل مسبقاً!").catch(() => {}); return;
   }
+
+  s.players.set(uid, { id: uid, username: uname, firstName: fname, lastName: lname });
+  privateUserToGame.set(uid, chatId);
+
+  const catList = [...s.selectedCategories].join("  ");
+  await ctx.editMessageText(
+    `🫥 <b>برا السالفة</b>\n\n` +
+    `الفئات: ${catList}\n\n` +
+    `اضغط <b>انضم</b> للمشاركة!\n\n` +
+    `👤 اللاعبون:\n${playerList(s)}\n\n` +
+    `<i>تنتهي الدعوة بعد 60 ثانية</i>`,
+    {
+      parse_mode: "HTML",
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback("➕ انضم", `out:join:${chatId}`)],
+        [Markup.button.callback("▶️ ابدأ الآن", `out:fstart:${chatId}`)],
+      ]),
+    }
+  ).catch(() => {});
+
+  ctx.answerCbQuery("✅ تم التسجيل!").catch(() => {});
 }
 
-// ─── Force Start ───────────────────────────────────────────────────────────────
-export function handleOutsiderForceStart(bot: Telegraf, ctx: Context, chatId: number): void {
-  const s = gameStates.get(chatId) as OutsiderState | undefined;
+// ─── Force start ───────────────────────────────────────────────────────────────
+export async function handleOutsiderForceStart(
+  bot: Telegraf, ctx: Context, chatId: number
+) {
+  const uid = (ctx.from as any).id;
+  const s   = gameStates.get(chatId);
+
   if (!s || s.type !== "outsider" || s.phase !== "joining") {
-    ctx.answerCbQuery("⚠️ اللعبة مو في مرحلة الانضمام").catch(() => {}); return;
+    ctx.answerCbQuery("❌ ما في تسجيل").catch(() => {}); return;
   }
-  if (ctx.from!.id !== s.startedBy) { ctx.answerCbQuery("🚫 بس اللي فتح اللعبة يقدر يبدأها").catch(() => {}); return; }
-  ctx.answerCbQuery("▶️ تبدأ!").catch(() => {});
-  forceStart(bot, chatId);
-}
-
-function forceStart(bot: Telegraf, chatId: number) {
-  const s = gameStates.get(chatId) as OutsiderState | undefined;
-  if (!s || s.type !== "outsider" || s.phase !== "joining") return;
-  if (s.joinTimer)     clearTimeout(s.joinTimer);
-  if (s.joinWarnTimer) clearTimeout(s.joinWarnTimer);
-
+  if (uid !== s.hostId) {
+    ctx.answerCbQuery("فقط من بدأ اللعبة يقدر يضغط هذا!").catch(() => {}); return;
+  }
   if (s.players.size < MIN_PLAYERS) {
-    bot.telegram.sendMessage(chatId, `❌ ما يكفي لاعبين (أقل شيء ${MIN_PLAYERS})`, { parse_mode: "HTML" }).catch(() => {});
+    ctx.answerCbQuery(`ما يكفي لاعبين! (${s.players.size}/${MIN_PLAYERS})`).catch(() => {}); return;
+  }
+  ctx.answerCbQuery("🚀 تم!").catch(() => {});
+  launchGame(bot, chatId);
+}
+
+// ─── Launch game ───────────────────────────────────────────────────────────────
+async function launchGame(bot: Telegraf, chatId: number) {
+  const s = gameStates.get(chatId);
+  if (!s || s.type !== "outsider" || s.phase !== "joining") return;
+  if (s.players.size < MIN_PLAYERS) {
+    bot.telegram.sendMessage(chatId,
+      `❌ ما كفت لاعبين! (${s.players.size}/${MIN_PLAYERS})\nاللعبة انتهت.`,
+      { parse_mode: "HTML" }
+    ).catch(() => {});
     clearGame(chatId);
     return;
   }
 
-  const ids = [...s.players.keys()];
-  s.outsiderId = ids[Math.floor(Math.random() * ids.length)];
-  const { category, topic } = pickTopic();
+  s.phase = "hinting";
+
+  // Pick outsider randomly
+  const allIds = [...s.players.keys()];
+  s.outsiderId = allIds[Math.floor(Math.random() * allIds.length)];
+
+  // Pick topic
+  const { category, topic } = pickTopic([...s.selectedCategories]);
   s.topic    = topic;
   s.category = category;
-  s.phase    = "hinting";
 
-  recordGame(chatId, [...s.players.values()]);
-
-  // DM everyone
-  for (const [uid, p] of s.players) {
-    privateUserToGame.set(uid, chatId);
-    if (uid === s.outsiderId) {
-      bot.telegram.sendMessage(uid,
-        `🫥 <b>أنت برا السالفة!</b>\n\n` +
-        `الكل عارف الموضوع وأنت لا!\n` +
-        `<i>استمع للتلميحات في القروب وحاول تكتشف الموضوع — ولا تنكشف!</i>`,
-        { parse_mode: "HTML" }
-      ).catch(() => {});
-    } else {
-      bot.telegram.sendMessage(uid,
-        `🎯 <b>الموضوع:</b> ${s.category}\n` +
-        `🔑 <b>الكلمة:</b> <b>${esc(s.topic)}</b>\n\n` +
-        `<i>أعط تلميحاً ذكياً في القروب — لا تقول الكلمة مباشرة!\n` +
-        `ولا تفضح نفسك لـ "برا السالفة"!</i>`,
-        { parse_mode: "HTML" }
-      ).catch(() => {});
-    }
-  }
-
-  bot.telegram.sendMessage(
-    chatId,
-    `🫥 <b>برا السالفة — الجولة بدأت!</b>\n\n` +
-    `👥 اللاعبون:\n${playerList(s)}\n\n` +
-    `📨 <b>كل واحد وصله رسالة خاصة</b>\n` +
-    `• إذا عرفت الموضوع: أعط تلميحاً ذكياً هنا في القروب\n` +
-    `• إذا أنت برا السالفة: حاول ما تنكشف 😏\n\n` +
-    `⏳ <b>دقيقتان للتلميحات — ابدأوا!</b>`,
+  // Group announcement
+  await bot.telegram.sendMessage(chatId,
+    `🫥 <b>برا السالفة — بدأت اللعبة!</b>\n\n` +
+    `👤 اللاعبون: ${[...s.players.values()].map((p) => esc(dnO(p))).join(" | ")}\n\n` +
+    `📨 <b>راجع خاصك!</b> — أرسلنا لك دورك الآن.\n\n` +
+    `🗣 عند كل لاعب <b>دقيقتان</b> للتلميح في القروب.\n` +
+    `لا تقول الكلمة مباشرة! 🎯\n\n` +
+    `<i>التصويت يبدأ تلقائياً بعد دقيقتين...</i>`,
     { parse_mode: "HTML" }
   ).catch(() => {});
 
-  s.hintWarnTimer = setTimeout(() => {
-    const cur = gameStates.get(chatId) as OutsiderState | undefined;
-    if (!cur || cur.phase !== "hinting") return;
-    bot.telegram.sendMessage(chatId, `⚡ <b>40 ثانية متبقية للتلميحات!</b> بعدها يبدأ التصويت...`, { parse_mode: "HTML" }).catch(() => {});
+  // Send role cards
+  await sendRoleCards(bot, s, chatId);
+
+  // Hinting timer → vote
+  setTimeout(() => {
+    const gs = gameStates.get(chatId);
+    if (!gs || gs.type !== "outsider" || gs.phase !== "hinting") return;
+    bot.telegram.sendMessage(chatId,
+      `⏳ <b>تبقت 40 ثانية</b> على التصويت!`,
+      { parse_mode: "HTML" }
+    ).catch(() => {});
   }, HINT_WARN_MS);
 
-  s.hintTimer = setTimeout(() => startVoting(bot, chatId), HINT_MS);
+  setTimeout(() => startVoting(bot, chatId), HINT_MS);
 }
 
 // ─── Voting ────────────────────────────────────────────────────────────────────
-function startVoting(bot: Telegraf, chatId: number) {
-  const s = gameStates.get(chatId) as OutsiderState | undefined;
+async function startVoting(bot: Telegraf, chatId: number) {
+  const s = gameStates.get(chatId);
   if (!s || s.type !== "outsider" || s.phase !== "hinting") return;
-  if (s.hintTimer)     clearTimeout(s.hintTimer);
-  if (s.hintWarnTimer) clearTimeout(s.hintWarnTimer);
 
   s.phase = "voting";
 
-  bot.telegram.sendMessage(
-    chatId,
-    `🗳️ <b>وقت التصويت!</b>\n\n` +
-    `مين تظنه <b>برا السالفة</b>؟\n` +
-    `<i>صوّت الحين — عندك 60 ثانية</i>`,
+  await bot.telegram.sendMessage(chatId,
+    `🗳 <b>التصويت!</b>\n\nمن تظن إنه برا السالفة؟\n<i>لكل شخص صوت واحد</i>`,
     { parse_mode: "HTML", ...voteKb(chatId, s) }
-  ).then((msg) => {
-    const cur = gameStates.get(chatId) as OutsiderState | undefined;
-    if (cur) cur.voteMsgId = msg.message_id;
-  }).catch((e) => logger.error({ err: e }, "outsider: vote msg"));
+  ).catch(() => {});
 
-  s.voteWarnTimer = setTimeout(() => {
-    const cur = gameStates.get(chatId) as OutsiderState | undefined;
-    if (!cur || cur.phase !== "voting") return;
-    bot.telegram.sendMessage(chatId, `⚡ <b>30 ثانية متبقية للتصويت!</b>`, { parse_mode: "HTML" }).catch(() => {});
+  setTimeout(() => {
+    const gs = gameStates.get(chatId);
+    if (!gs || gs.type !== "outsider" || gs.phase !== "voting") return;
+    bot.telegram.sendMessage(chatId, `⏳ <b>تبقى 30 ثانية!</b>`, { parse_mode: "HTML" }).catch(() => {});
   }, VOTE_WARN_MS);
 
-  s.voteTimer = setTimeout(() => resolveVoting(bot, chatId), VOTE_MS);
+  setTimeout(() => resolveVote(bot, chatId), VOTE_MS);
 }
 
-export function handleOutsiderVote(bot: Telegraf, ctx: Context, chatId: number, targetId: number): void {
-  const s = gameStates.get(chatId) as OutsiderState | undefined;
+// ─── Handle vote ───────────────────────────────────────────────────────────────
+export async function handleOutsiderVote(
+  bot: Telegraf, ctx: Context, chatId: number, targetId: number
+) {
+  const uid = (ctx.from as any).id;
+  const s   = gameStates.get(chatId);
+
   if (!s || s.type !== "outsider" || s.phase !== "voting") {
-    ctx.answerCbQuery("⚠️ التصويت منتهي").catch(() => {}); return;
+    ctx.answerCbQuery("التصويت مو متاح الحين").catch(() => {}); return;
   }
-  const voter = s.players.get(ctx.from!.id);
-  if (!voter) { ctx.answerCbQuery("🚫 لست في اللعبة").catch(() => {}); return; }
-  if (ctx.from!.id === targetId) { ctx.answerCbQuery("🚫 ما تصوّت على نفسك!").catch(() => {}); return; }
-  const target = s.players.get(targetId);
-  if (!target) { ctx.answerCbQuery("🚫 لاعب غير موجود").catch(() => {}); return; }
-
-  s.votes.set(ctx.from!.id, targetId);
-  ctx.answerCbQuery(`✅ صوّتت على ${dn(target)}`).catch(() => {});
-
-  if (s.voteMsgId)
-    bot.telegram.editMessageReplyMarkup(chatId, s.voteMsgId, undefined, voteKb(chatId, s).reply_markup).catch(() => {});
-
-  // All voted → resolve early
-  if ([...s.players.keys()].every((uid) => s.votes.has(uid))) {
-    bot.telegram.sendMessage(chatId, `⚡ <b>الجميع صوّتوا — نكشف النتيجة!</b>`, { parse_mode: "HTML" }).catch(() => {});
-    resolveVoting(bot, chatId);
+  if (!s.players.has(uid)) {
+    ctx.answerCbQuery("أنت مو من اللاعبين").catch(() => {}); return;
   }
+  if (uid === targetId) {
+    ctx.answerCbQuery("ما تقدر تصوت على نفسك!").catch(() => {}); return;
+  }
+  if (!s.players.has(targetId)) {
+    ctx.answerCbQuery("هذا مو لاعب").catch(() => {}); return;
+  }
+
+  const prev = s.votes.get(uid);
+  s.votes.set(uid, targetId);
+
+  ctx.answerCbQuery(prev ? "✏️ تم تعديل صوتك" : "✅ تم تسجيل صوتك").catch(() => {});
+
+  // Update vote display
+  await ctx.editMessageText(
+    `🗳 <b>التصويت!</b>\n\nمن تظن إنه برا السالفة؟\n<i>لكل شخص صوت واحد — ${s.votes.size}/${s.players.size} صوتوا</i>`,
+    { parse_mode: "HTML", ...voteKb(chatId, s) }
+  ).catch(() => {});
+
+  // All voted → early resolve
+  if (s.votes.size >= s.players.size) resolveVote(bot, chatId);
 }
 
-// ─── Resolve ───────────────────────────────────────────────────────────────────
-function resolveVoting(bot: Telegraf, chatId: number) {
-  const s = gameStates.get(chatId) as OutsiderState | undefined;
+// ─── Resolve vote ──────────────────────────────────────────────────────────────
+async function resolveVote(bot: Telegraf, chatId: number) {
+  const s = gameStates.get(chatId);
   if (!s || s.type !== "outsider" || s.phase !== "voting") return;
-  if (s.voteTimer)     clearTimeout(s.voteTimer);
-  if (s.voteWarnTimer) clearTimeout(s.voteWarnTimer);
-  if (s.voteMsgId)
-    bot.telegram.editMessageReplyMarkup(chatId, s.voteMsgId, undefined, { inline_keyboard: [] }).catch(() => {});
 
-  // Tally votes
+  s.phase = "guessing";
+
+  // Count votes
   const tally = new Map<number, number>();
-  for (const [, v] of s.votes) tally.set(v, (tally.get(v) ?? 0) + 1);
-
-  let maxV = 0, topId: number | null = null, tie = false;
-  for (const [uid, cnt] of tally) {
-    if (cnt > maxV) { maxV = cnt; topId = uid; tie = false; }
-    else if (cnt === maxV) tie = true;
+  for (const target of s.votes.values()) {
+    tally.set(target, (tally.get(target) ?? 0) + 1);
   }
 
-  // Build vote summary
-  const summary = [...s.players.values()].map((p) => {
+  let maxVotes = 0;
+  let accused: number | null = null;
+  for (const [pid, cnt] of tally) {
+    if (cnt > maxVotes) { maxVotes = cnt; accused = pid; }
+  }
+
+  const accusedPlayer = accused ? s.players.get(accused) : null;
+  const isOutsider    = accused === s.outsiderId;
+
+  // Show vote results
+  const voteLines = [...s.players.values()].map((p) => {
     const cnt = tally.get(p.id) ?? 0;
-    const bar = "🔴".repeat(cnt) + "⚪".repeat(s.players.size - 1 - cnt);
-    return `${bar} <b>${esc(dn(p))}</b> (${cnt} صوت)`;
+    const bar = "🔸".repeat(cnt) || "—";
+    return `${esc(dnO(p))}: ${bar} (${cnt})`;
   }).join("\n");
 
-  const outsider = s.players.get(s.outsiderId!)!;
-  const caughtCorrectly = !tie && topId === s.outsiderId;
-
-  bot.telegram.sendMessage(
-    chatId,
-    `📊 <b>نتائج التصويت:</b>\n\n${summary}`,
+  await bot.telegram.sendMessage(chatId,
+    `📊 <b>نتيجة التصويت:</b>\n\n${voteLines}\n\n` +
+    `🎯 أعلى أصوات: <b>${accusedPlayer ? esc(dnO(accusedPlayer)) : "تعادل"}</b>`,
     { parse_mode: "HTML" }
-  ).then(() => {
-    if (caughtCorrectly) {
-      // Outsider caught → give them a chance to guess
-      s.phase = "guessing";
-      bot.telegram.sendMessage(
-        chatId,
-        `🎯 <b>القروب اشتبه في ${esc(dn(outsider))}!</b>\n\n` +
-        `🫥 يا ${esc(dn(outsider))} — هل تقدر تحزر الموضوع؟\n` +
-        `<i>أرسلي الكلمة خاص للبوت خلال 40 ثانية!</i>`,
+  ).catch(() => {});
+
+  if (!isOutsider) {
+    // Wrong person accused → outsider gets to guess
+    const outsider = s.players.get(s.outsiderId!);
+    await bot.telegram.sendMessage(chatId,
+      `😏 <b>اتهمتوا الشخص الغلط!</b>\n\n` +
+      `برا السالفة هو <b>${outsider ? esc(dnO(outsider)) : "؟"}</b> 🫥\n\n` +
+      `الآن له فرصة <b>45 ثانية</b> يخمن الكلمة خاص للبوت وينقذ نفسه!`,
+      { parse_mode: "HTML" }
+    ).catch(() => {});
+
+    if (outsider) {
+      bot.telegram.sendMessage(outsider.id,
+        `🎯 <b>اتهموا شخص ثاني — فرصتك الذهبية!</b>\n\n` +
+        `خمّن الكلمة السرية وأرسلها هنا خلال <b>45 ثانية</b> واكسب!\n\n` +
+        `<i>الفئة: ${s.category}</i>`,
         { parse_mode: "HTML" }
       ).catch(() => {});
-
-      // DM the outsider to guess
-      bot.telegram.sendMessage(
-        outsider.id,
-        `🫥 <b>تم الإمساك بك!</b>\n\n` +
-        `عندك فرصة واحدة — أرسل لي الموضوع تخمينك الحين (فئة: <b>${esc(s.category)}</b>)`,
-        { parse_mode: "HTML" }
-      ).catch(() => {});
-
-      s.guessTimer = setTimeout(() => announceResult(bot, chatId, false), GUESS_MS);
-    } else {
-      announceResult(bot, chatId, false);
     }
-  }).catch(() => {});
+
+    setTimeout(() => finalizeGame(bot, chatId, false, false), GUESS_MS);
+  } else {
+    // Correct! Outsider gets one guess
+    const outsider = s.players.get(s.outsiderId!);
+    await bot.telegram.sendMessage(chatId,
+      `🎉 <b>كشفتوه!</b>\n\n` +
+      `برا السالفة هو <b>${outsider ? esc(dnO(outsider)) : "؟"}</b> 🫥\n\n` +
+      `لكن... له فرصة أخيرة! إذا خمّن الكلمة السرية يكسب! 🎯\n` +
+      `عنده <b>45 ثانية</b> يرسلها خاص للبوت.`,
+      { parse_mode: "HTML" }
+    ).catch(() => {});
+
+    if (outsider) {
+      bot.telegram.sendMessage(outsider.id,
+        `🎯 <b>اكتشفوك — لكن عندك فرصة!</b>\n\n` +
+        `خمّن الكلمة السرية وأرسلها هنا خلال <b>45 ثانية</b> واكسب!\n\n` +
+        `<i>الفئة: ${s.category}</i>`,
+        { parse_mode: "HTML" }
+      ).catch(() => {});
+    }
+
+    setTimeout(() => finalizeGame(bot, chatId, true, false), GUESS_MS);
+  }
 }
 
-// ─── Handle outsider's guess (via DM) ─────────────────────────────────────────
-export function handleOutsiderGuess(bot: Telegraf, chatId: number, userId: number, text: string): void {
-  const s = gameStates.get(chatId) as OutsiderState | undefined;
-  if (!s || s.type !== "outsider" || s.phase !== "guessing") return;
-  if (userId !== s.outsiderId) return;
+// ─── Handle outsider's guess ───────────────────────────────────────────────────
+export async function handleOutsiderGuess(
+  bot: Telegraf, chatId: number, uid: number, text: string
+) {
+  const s = gameStates.get(chatId);
+  if (!s || s.type !== "outsider" || s.phase !== "guessing" || uid !== s.outsiderId) return;
 
-  const guessClean  = text.trim().toLowerCase().replace(/\s+/g, "");
-  const topicClean  = s.topic.trim().toLowerCase().replace(/\s+/g, "");
-  const guessedRight = guessClean === topicClean ||
-    topicClean.includes(guessClean) ||
-    guessClean.includes(topicClean);
+  const guess   = text.trim().toLowerCase();
+  const correct = s.topic!.toLowerCase();
+  const isRight = guess === correct || correct.includes(guess) || guess.includes(correct);
 
-  if (s.guessTimer) clearTimeout(s.guessTimer);
-  announceResult(bot, chatId, guessedRight, text.trim());
+  if (isRight) {
+    await bot.telegram.sendMessage(uid,
+      `🎉 <b>صح! الكلمة كانت "${s.topic}"!</b>\n\nيتم إعلان النتيجة في القروب...`,
+      { parse_mode: "HTML" }
+    ).catch(() => {});
+    await finalizeGame(bot, chatId, true, true, uid);
+  } else {
+    await bot.telegram.sendMessage(uid,
+      `❌ خطأ! جرّب مرة ثانية قبل ما تنتهي الوقت.`,
+      { parse_mode: "HTML" }
+    ).catch(() => {});
+  }
 }
 
-// ─── Announce final result ─────────────────────────────────────────────────────
-function announceResult(bot: Telegraf, chatId: number, outsiderGuessedRight: boolean, guess?: string) {
-  const s = gameStates.get(chatId) as OutsiderState | undefined;
+// ─── Finalize game ─────────────────────────────────────────────────────────────
+async function finalizeGame(
+  bot: Telegraf,
+  chatId: number,
+  outsiderCaught: boolean,
+  outsiderGuessedRight: boolean,
+  guesserId?: number
+) {
+  const s = gameStates.get(chatId);
   if (!s || s.type !== "outsider") return;
+
   s.phase = "done";
 
-  const outsider = s.players.get(s.outsiderId!)!;
-  const players = [...s.players.values()];
+  const outsider       = s.players.get(s.outsiderId!);
+  const insiders       = [...s.players.values()].filter((p) => p.id !== s.outsiderId);
+  const outsiderName   = outsider ? esc(dnO(outsider)) : "؟";
+  const insiderNames   = insiders.map((p) => esc(dnO(p))).join("، ");
 
-  // Determine who won
-  // Logic:
-  // - If outsider was NOT caught (tie or wrong person): outsider wins (no guess needed)
-  // - If outsider WAS caught AND guessed right: outsider wins
-  // - If outsider WAS caught AND guessed wrong: players win
-  const tally = new Map<number, number>();
-  for (const [, v] of s.votes) tally.set(v, (tally.get(v) ?? 0) + 1);
-  let maxV = 0, topId: number | null = null, tie = false;
-  for (const [uid, cnt] of tally) {
-    if (cnt > maxV) { maxV = cnt; topId = uid; tie = false; }
-    else if (cnt === maxV) tie = true;
-  }
-  const caughtCorrectly = !tie && topId === s.outsiderId;
+  let resultMsg = `🫥 <b>انتهت اللعبة!</b>\n\n`;
+  resultMsg    += `🔑 الكلمة السرية كانت: <b>${esc(s.topic!)}</b>\n`;
+  resultMsg    += `📂 الفئة: ${s.category}\n\n`;
+  resultMsg    += `👤 برا السالفة: <b>${outsiderName}</b>\n`;
+  resultMsg    += `👥 داخل السالفة: ${insiderNames}\n\n`;
 
-  let outsiderWins: boolean;
-  let msg = "";
+  let winnerId: number | null = null;
 
-  if (!caughtCorrectly) {
-    outsiderWins = true;
-    msg = `🫥 <b>برا السالفة فاز!</b>\n\n` +
-      `القروب ما اكتشف ${esc(dn(outsider))} 😏\n` +
-      `الموضوع كان: <b>${esc(s.category)} — ${esc(s.topic)}</b>`;
-  } else if (outsiderGuessedRight) {
-    outsiderWins = true;
-    msg = `🫥 <b>برا السالفة فاز من الباب الخلفي!</b>\n\n` +
-      `تم إمساك ${esc(dn(outsider))}...\n` +
-      `لكنه خمّن الموضوع صح: <b>${esc(guess ?? s.topic)}</b> ✅\n` +
-      `الموضوع كان: <b>${esc(s.category)} — ${esc(s.topic)}</b>`;
+  if (outsiderGuessedRight) {
+    resultMsg += `🏆 <b>برا السالفة يكسب!</b>\n${outsiderName} خمّن الكلمة الصح وانقذ نفسه! 🎯`;
+    winnerId   = s.outsiderId!;
+    if (outsider) recordWin(chatId, toPlayer(outsider));
+  } else if (!outsiderCaught) {
+    resultMsg += `🏆 <b>برا السالفة يكسب!</b>\n${outsiderName} نجا من الكشف وفاز الفريق الخطأ! 😈`;
+    winnerId   = s.outsiderId!;
+    if (outsider) recordWin(chatId, toPlayer(outsider));
   } else {
-    outsiderWins = false;
-    const guessMsg = guess ? `حاول يقول: "${esc(guess)}" ❌` : `ما رد في الوقت المحدد ❌`;
-    msg = `🎉 <b>القروب فاز!</b>\n\n` +
-      `اكتشفوا ${esc(dn(outsider))} كان <b>برا السالفة!</b>\n` +
-      `${guessMsg}\n` +
-      `الموضوع كان: <b>${esc(s.category)} — ${esc(s.topic)}</b>`;
+    resultMsg += `🏆 <b>الفريق الداخلي يكسب!</b>\nكشفوا برا السالفة وما قدر يخمن الكلمة! 🎉`;
+    for (const p of insiders) recordWin(chatId, toPlayer(p));
   }
 
-  // Record wins
-  if (outsiderWins) {
-    recordWin(chatId, outsider);
-  } else {
-    const winners = players.filter((p) => p.id !== s.outsiderId);
-    for (const w of winners) recordWin(chatId, w);
-  }
+  recordGame(chatId, [...s.players.values()].map(toPlayer));
 
-  bot.telegram.sendMessage(chatId, msg, { parse_mode: "HTML" }).catch(() => {});
-  setTimeout(() => clearGame(chatId), 3000);
+  await bot.telegram.sendMessage(chatId, resultMsg, { parse_mode: "HTML" }).catch(() => {});
+
+  clearGame(chatId);
 }
-
-export { TOPICS };
