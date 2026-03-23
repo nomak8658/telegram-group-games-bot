@@ -21,6 +21,7 @@ import {
   handleOutsiderVote, handleOutsiderGuess, handleOutsiderWordPick,
   handleOutsiderCatToggle, handleOutsiderCatAll, handleOutsiderCatDone,
 } from "./games/outsider.js";
+import { generateTopCard } from "./topCard.js";
 
 function menuMsg() {
   return (
@@ -183,6 +184,34 @@ export async function launchBot(): Promise<void> {
       text += `${medals[i] ?? `${i + 1}.`} ${esc(e.name)}  —  ${e.wins} فوز  <i>(${rate}%)</i>\n`;
     });
     ctx.reply(text, { parse_mode: "HTML" }).catch(() => {});
+  });
+
+  bot.command("top", async (ctx) => {
+    if (ctx.chat.type === "private") return;
+    const chatId = ctx.chat.id;
+    const board  = chatLeaderboard.get(chatId);
+    if (!board || board.size === 0) {
+      ctx.reply("⚠️ ما في إحصائيات بعد — العبوا أولاً! 🎮").catch(() => {}); return;
+    }
+    const sorted = [...board.entries()].sort((a, b) => b[1].wins - a[1].wins);
+    const groupName = (ctx.chat as any).title ?? "المجموعة";
+    try {
+      const buf = await generateTopCard(sorted, groupName);
+      await ctx.replyWithPhoto({ source: buf }, {
+        caption: `🏆 <b>Top 5 — ${esc(groupName)}</b>\n<i>النقاط = الفوز بالألعاب</i>`,
+        parse_mode: "HTML",
+      });
+    } catch (e) {
+      logger.error({ err: e }, "top card error");
+      // Fallback to text
+      const medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"];
+      let text = `🏆 <b>Top 5</b>\n\n`;
+      sorted.slice(0, 5).forEach(([, e], i) => {
+        const rate = e.games > 0 ? Math.round((e.wins / e.games) * 100) : 0;
+        text += `${medals[i]} ${esc(e.name)} — ${e.wins} نقطة (${rate}%)\n`;
+      });
+      ctx.reply(text, { parse_mode: "HTML" }).catch(() => {});
+    }
   });
 
   bot.command("mafia", (ctx) => {
