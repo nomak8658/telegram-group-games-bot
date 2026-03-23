@@ -16,17 +16,11 @@ RUN npm install -g pnpm@10
 WORKDIR /app
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-
 COPY artifacts/api-server/package.json ./artifacts/api-server/package.json
-COPY lib/api-spec/package.json         ./lib/api-spec/package.json
-COPY lib/api-client-react/package.json ./lib/api-client-react/package.json
-COPY lib/api-zod/package.json          ./lib/api-zod/package.json
-COPY lib/db/package.json               ./lib/db/package.json
 
-RUN pnpm install --frozen-lockfile --filter @workspace/api-server...
+RUN pnpm install --frozen-lockfile --filter @workspace/api-server
 
 COPY artifacts/api-server/ ./artifacts/api-server/
-COPY lib/                  ./lib/
 
 RUN pnpm --filter @workspace/api-server run build
 
