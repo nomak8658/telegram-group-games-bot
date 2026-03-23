@@ -70,22 +70,27 @@ export interface MafiaPlayer {
 
 export interface MafiaState {
   type: "mafia";
-  phase: "joining" | "discussing" | "voting" | "done";
+  phase: "joining" | "coordinating" | "discussing" | "voting" | "done";
   players: Map<number, MafiaPlayer>;
   round: number;
   startedBy: number;
   chatId: number;
+  // Mafia secret kill (coordinating phase)
+  mafiaKillVotes: Map<number, number>;   // mafia voter id → chosen victim id
+  mafiaKillTarget?: number;              // resolved kill target (majority vote)
   // Per-round special actions
   doctorChoice?: number;
   detectiveChoice?: number;
   actionsCompleted: Set<"doctor" | "detective">;
-  doctorLastSelfProtectRound?: number;  // track cooldown
+  doctorLastSelfProtectRound?: number;
   // Voting
-  dayVotes: Map<number, number>;     // voter uid → target uid
+  dayVotes: Map<number, number>;
   dayVoteMsgId?: number;
   joinMsgId?: number;
   joinTimer?: ReturnType<typeof setTimeout>;
   joinWarnTimer?: ReturnType<typeof setTimeout>;
+  coordTimer?: ReturnType<typeof setTimeout>;
+  coordWarnTimer?: ReturnType<typeof setTimeout>;
   discussTimer?: ReturnType<typeof setTimeout>;
   discussWarnTimer?: ReturnType<typeof setTimeout>;
   voteTimer?: ReturnType<typeof setTimeout>;
@@ -217,6 +222,7 @@ export function clearGame(chatId: number): void {
   } else if (s.type === "mafia") {
     [
       s.joinTimer, s.joinWarnTimer,
+      s.coordTimer, s.coordWarnTimer,
       s.discussTimer, s.discussWarnTimer,
       s.voteTimer, s.voteWarnTimer,
     ].forEach((t) => t && clearTimeout(t));
