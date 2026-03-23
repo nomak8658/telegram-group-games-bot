@@ -22,6 +22,12 @@ import {
   handleOutsiderCatToggle, handleOutsiderCatAll, handleOutsiderCatDone,
   handleOutsiderSkipVote,
 } from "./games/outsider.js";
+import {
+  startCircle, handleCircleJoin, handleCircleForceStart, handleCircleText,
+} from "./games/circle.js";
+import {
+  startBomb, handleBombJoin, handleBombForceStart, handleBombPass,
+} from "./games/bomb.js";
 import { generateTopCard } from "./topCard.js";
 
 function menuMsg() {
@@ -30,16 +36,20 @@ function menuMsg() {
     `🥊 <b>مين ضد مين</b>\n<i>موضوع عشوائي — شخصان يتجادلان والقروب يصوت</i>\n\n` +
     `💀 <b>كسر الثقة</b>\n<i>الكل يكتب رأيه الصريح سراً، والضحية تخمن كاتب الأقسى</i>\n\n` +
     `🎭 <b>المافيا</b>\n<i>نقاش مفتوح، أدوار سرية، تصويت — من يكشف المافيا أولاً؟</i>\n\n` +
-    `🫥 <b>برا السالفة</b>\n<i>شخص ما يعرف الموضوع — الكل يلمّح وأنت تكتشف!</i>`
+    `🫥 <b>برا السالفة</b>\n<i>شخص ما يعرف الموضوع — الكل يلمّح وأنت تكتشف!</i>\n\n` +
+    `🔴 <b>الدائرة القاتلة</b>\n<i>تحديات سريعة — الأبطأ والغلطان يطلع، آخر واحد يبقى يفوز!</i>\n\n` +
+    `💣 <b>القنبلة المتنقلة</b>\n<i>قنبلة تنتقل بين اللاعبين — واللي تنفجر عليه يطلع! 😈</i>`
   );
 }
 
 function menuKeyboard(chatId: number) {
   return Markup.inlineKeyboard([
-    [Markup.button.callback("🥊  مين ضد مين",   `menu:mvs:${chatId}`)],
-    [Markup.button.callback("💀  كسر الثقة",    `menu:tb:${chatId}`)],
-    [Markup.button.callback("🎭  المافيا",       `menu:mafia:${chatId}`)],
-    [Markup.button.callback("🫥  برا السالفة",  `menu:outsider:${chatId}`)],
+    [Markup.button.callback("🥊  مين ضد مين",        `menu:mvs:${chatId}`)],
+    [Markup.button.callback("💀  كسر الثقة",         `menu:tb:${chatId}`)],
+    [Markup.button.callback("🎭  المافيا",            `menu:mafia:${chatId}`)],
+    [Markup.button.callback("🫥  برا السالفة",       `menu:outsider:${chatId}`)],
+    [Markup.button.callback("🔴  الدائرة القاتلة",  `menu:circle:${chatId}`)],
+    [Markup.button.callback("💣  القنبلة المتنقلة", `menu:bomb:${chatId}`)],
   ]);
 }
 
@@ -225,6 +235,18 @@ export async function launchBot(): Promise<void> {
     startOutsider(bot, ctx);
   });
 
+  bot.command(["circle", "daire", "داira"], (ctx) => {
+    if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
+    const f = ctx.from;
+    startCircle(bot, ctx.chat.id, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
+  });
+
+  bot.command(["bomb", "qunbula", "قنبلة"], (ctx) => {
+    if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
+    const f = ctx.from;
+    startBomb(bot, ctx.chat.id, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
+  });
+
   bot.command("menvsmen", (ctx) => {
     if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
     const chatId = ctx.chat.id;
@@ -316,6 +338,28 @@ export async function launchBot(): Promise<void> {
         await ctx.answerCbQuery("🫥").catch(() => {});
         ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
         await startOutsider(bot, ctx);
+        return;
+      }
+
+      if (data.startsWith("menu:circle:")) {
+        const chatId = parseInt(data.slice("menu:circle:".length), 10);
+        if (isNaN(chatId)) return;
+        if (gameStates.has(chatId)) { await ctx.answerCbQuery("⚠️ في لعبة شغالة!").catch(() => {}); return; }
+        await ctx.answerCbQuery("🔴").catch(() => {});
+        ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
+        const f = ctx.from;
+        startCircle(bot, chatId, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
+        return;
+      }
+
+      if (data.startsWith("menu:bomb:")) {
+        const chatId = parseInt(data.slice("menu:bomb:".length), 10);
+        if (isNaN(chatId)) return;
+        if (gameStates.has(chatId)) { await ctx.answerCbQuery("⚠️ في لعبة شغالة!").catch(() => {}); return; }
+        await ctx.answerCbQuery("💣").catch(() => {});
+        ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
+        const f = ctx.from;
+        startBomb(bot, chatId, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
         return;
       }
 
@@ -434,6 +478,32 @@ export async function launchBot(): Promise<void> {
         if (!isNaN(chatId) && !isNaN(idx)) { handleOutsiderWordPick(bot, ctx, chatId, idx); return; }
       }
 
+      // ── الدائرة القاتلة ────────────────────────────────────────────────────────
+      if (data.startsWith("circle:join:")) {
+        const chatId = parseInt(data.slice("circle:join:".length), 10);
+        if (!isNaN(chatId)) { await handleCircleJoin(bot, ctx, chatId); return; }
+      }
+      if (data.startsWith("circle:fstart:")) {
+        const chatId = parseInt(data.slice("circle:fstart:".length), 10);
+        if (!isNaN(chatId)) { await handleCircleForceStart(bot, ctx, chatId); return; }
+      }
+
+      // ── القنبلة المتنقلة ───────────────────────────────────────────────────────
+      if (data.startsWith("bomb:join:")) {
+        const chatId = parseInt(data.slice("bomb:join:".length), 10);
+        if (!isNaN(chatId)) { await handleBombJoin(bot, ctx, chatId); return; }
+      }
+      if (data.startsWith("bomb:fstart:")) {
+        const chatId = parseInt(data.slice("bomb:fstart:".length), 10);
+        if (!isNaN(chatId)) { await handleBombForceStart(bot, ctx, chatId); return; }
+      }
+      if (data.startsWith("bomb:pass:")) {
+        const parts    = data.split(":");
+        const chatId   = parseInt(parts[2], 10);
+        const targetId = parseInt(parts[3], 10);
+        if (!isNaN(chatId) && !isNaN(targetId)) { await handleBombPass(bot, ctx, chatId, targetId); return; }
+      }
+
       await ctx.answerCbQuery().catch(() => {});
     } catch (e) {
       logger.error({ err: e }, "callback error");
@@ -497,6 +567,15 @@ export async function launchBot(): Promise<void> {
         });
       }
       return;
+    }
+
+    // ── الدائرة القاتلة — text handler ──────────────────────────────────────────
+    {
+      const cs = gameStates.get(chatId);
+      if (cs?.type === "circle" && cs.phase === "playing" && cs.players.has(uid)) {
+        handleCircleText(bot, chatId, uid, text, Date.now());
+        // don't return — still process other handlers (trustbreak victim resolve, etc.)
+      }
     }
 
     // Resolve victim ID
