@@ -119,6 +119,8 @@ export interface OutsiderState {
   votes: Map<number, number>;
   hostId: number;
   selectedCategories: Set<string>;
+  wordChoices?: string[];
+  outsiderCaught?: boolean;
   voteMsgId?: number;
   joinMsgId?: number;
   joinTimer?: ReturnType<typeof setTimeout>;
