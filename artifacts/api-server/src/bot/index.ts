@@ -467,6 +467,33 @@ export async function launchBot(): Promise<void> {
 
     const chatId = ctx.chat.id;
 
+    // ── "توب" trigger (Arabic natural text) ──────────────────────────────────
+    const trimmed = text.trim();
+    if (trimmed === "توب" || trimmed === "top" || trimmed === "TOP") {
+      const board = chatLeaderboard.get(chatId);
+      if (!board || board.size === 0) {
+        ctx.reply("⚠️ ما في إحصائيات بعد — العبوا أولاً! 🎮").catch(() => {});
+      } else {
+        const sorted = [...board.entries()].sort((a, b) => b[1].wins - a[1].wins);
+        const groupName = (ctx.chat as any).title ?? "المجموعة";
+        generateTopCard(sorted, groupName).then((buf) => {
+          ctx.replyWithPhoto({ source: buf }, {
+            caption: `🏆 <b>Top 5 — ${esc(groupName)}</b>\n<i>النقاط = الفوز بالألعاب</i>`,
+            parse_mode: "HTML",
+          }).catch(() => {});
+        }).catch(() => {
+          const medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"];
+          let t = `🏆 <b>Top 5</b>\n\n`;
+          sorted.slice(0, 5).forEach(([, e], i) => {
+            const rate = e.games > 0 ? Math.round((e.wins / e.games) * 100) : 0;
+            t += `${medals[i]} ${esc(e.name)} — ${e.wins} نقطة (${rate}%)\n`;
+          });
+          ctx.reply(t, { parse_mode: "HTML" }).catch(() => {});
+        });
+      }
+      return;
+    }
+
     // Resolve victim ID
     const s = gameStates.get(chatId);
     if (s?.type === "trustbreak") {
