@@ -13,7 +13,7 @@ import {
 } from "./games/trustbreak.js";
 import {
   startMafia, handleMafiaJoin, handleMafiaForceStart,
-  handleMafiaProtect, handleMafiaInvestigate,
+  handleMafiaKill, handleMafiaProtect, handleMafiaInvestigate,
   handleMafiaVote,
 } from "./games/mafia.js";
 
@@ -311,6 +311,12 @@ export async function launchBot(): Promise<void> {
       if (data.startsWith("mf:start:")) {
         const chatId = parseInt(data.slice("mf:start:".length), 10);
         if (!isNaN(chatId)) { handleMafiaForceStart(bot, ctx, chatId, botUsername); return; }
+      }
+      if (data.startsWith("mf:kill:")) {
+        const parts = data.split(":");
+        const chatId = parseInt(parts[2], 10);
+        const targetUid = parseInt(parts[3], 10);
+        if (!isNaN(chatId) && !isNaN(targetUid)) { handleMafiaKill(bot, ctx, chatId, targetUid); return; }
       }
       if (data.startsWith("mf:protect:")) {
         const parts = data.split(":");
