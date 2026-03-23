@@ -104,20 +104,21 @@ export interface MafiaState {
 
 export interface OutsiderPlayer {
   id: number;
-  name: string;
   username?: string;
+  firstName: string;
+  lastName: string;
 }
 
 export interface OutsiderState {
   type: "outsider";
-  phase: "joining" | "hinting" | "voting" | "guessing" | "done";
+  phase: "selecting" | "joining" | "hinting" | "voting" | "guessing" | "done";
   players: Map<number, OutsiderPlayer>;
   outsiderId: number | null;
-  topic: string;
-  category: string;
+  topic: string | null;
+  category: string | null;
   votes: Map<number, number>;
-  startedBy: number;
-  chatId: number;
+  hostId: number;
+  selectedCategories: Set<string>;
   voteMsgId?: number;
   joinMsgId?: number;
   joinTimer?: ReturnType<typeof setTimeout>;
