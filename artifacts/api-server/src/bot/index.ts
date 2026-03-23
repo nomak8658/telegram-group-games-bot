@@ -28,6 +28,10 @@ import {
 import {
   startBomb, handleBombJoin, handleBombForceStart, handleBombPass,
 } from "./games/bomb.js";
+import {
+  startWire, handleWireJoin, handleWireStart, handleWireCut,
+} from "./games/wire.js";
+import type { WireColor } from "./state.js";
 import { generateTopCard } from "./topCard.js";
 
 function menuMsg() {
@@ -38,18 +42,20 @@ function menuMsg() {
     `🎭 <b>المافيا</b>\n<i>نقاش مفتوح، أدوار سرية، تصويت — من يكشف المافيا أولاً؟</i>\n\n` +
     `🫥 <b>برا السالفة</b>\n<i>شخص ما يعرف الموضوع — الكل يلمّح وأنت تكتشف!</i>\n\n` +
     `🔴 <b>الدائرة القاتلة</b>\n<i>تحديات سريعة — الأبطأ والغلطان يطلع، آخر واحد يبقى يفوز!</i>\n\n` +
-    `💣 <b>القنبلة المتنقلة</b>\n<i>قنبلة تنتقل بين اللاعبين — واللي تنفجر عليه يطلع! 😈</i>`
+    `💣 <b>القنبلة المتنقلة</b>\n<i>قنبلة تنتقل بين اللاعبين — واللي تنفجر عليه يطلع!</i>\n\n` +
+    `🔌 <b>قنبلة الثواني الأخيرة</b>\n<i>فريقان — 4 أسلاك مجهولة — سلك يُفكّك وآخر يُفجّر! توتر حقيقي</i>`
   );
 }
 
 function menuKeyboard(chatId: number) {
   return Markup.inlineKeyboard([
-    [Markup.button.callback("🥊  مين ضد مين",        `menu:mvs:${chatId}`)],
-    [Markup.button.callback("💀  كسر الثقة",         `menu:tb:${chatId}`)],
-    [Markup.button.callback("🎭  المافيا",            `menu:mafia:${chatId}`)],
-    [Markup.button.callback("🫥  برا السالفة",       `menu:outsider:${chatId}`)],
-    [Markup.button.callback("🔴  الدائرة القاتلة",  `menu:circle:${chatId}`)],
-    [Markup.button.callback("💣  القنبلة المتنقلة", `menu:bomb:${chatId}`)],
+    [Markup.button.callback("🥊  مين ضد مين",              `menu:mvs:${chatId}`)],
+    [Markup.button.callback("💀  كسر الثقة",               `menu:tb:${chatId}`)],
+    [Markup.button.callback("🎭  المافيا",                  `menu:mafia:${chatId}`)],
+    [Markup.button.callback("🫥  برا السالفة",             `menu:outsider:${chatId}`)],
+    [Markup.button.callback("🔴  الدائرة القاتلة",        `menu:circle:${chatId}`)],
+    [Markup.button.callback("💣  القنبلة المتنقلة",       `menu:bomb:${chatId}`)],
+    [Markup.button.callback("🔌  قنبلة الثواني الأخيرة",  `menu:wire:${chatId}`)],
   ]);
 }
 
@@ -247,6 +253,12 @@ export async function launchBot(): Promise<void> {
     startBomb(bot, ctx.chat.id, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
   });
 
+  bot.command(["wire", "aslak", "أسلاك"], (ctx) => {
+    if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
+    const f = ctx.from;
+    startWire(bot, ctx.chat.id, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
+  });
+
   bot.command("menvsmen", (ctx) => {
     if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
     const chatId = ctx.chat.id;
@@ -360,6 +372,17 @@ export async function launchBot(): Promise<void> {
         ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
         const f = ctx.from;
         startBomb(bot, chatId, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
+        return;
+      }
+
+      if (data.startsWith("menu:wire:")) {
+        const chatId = parseInt(data.slice("menu:wire:".length), 10);
+        if (isNaN(chatId)) return;
+        if (gameStates.has(chatId)) { await ctx.answerCbQuery("⚠️ في لعبة شغالة!").catch(() => {}); return; }
+        await ctx.answerCbQuery("🔌").catch(() => {});
+        ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
+        const f = ctx.from;
+        startWire(bot, chatId, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
         return;
       }
 
@@ -502,6 +525,26 @@ export async function launchBot(): Promise<void> {
         const chatId   = parseInt(parts[2], 10);
         const targetId = parseInt(parts[3], 10);
         if (!isNaN(chatId) && !isNaN(targetId)) { await handleBombPass(bot, ctx, chatId, targetId); return; }
+      }
+
+      // ── قنبلة الثواني الأخيرة ──────────────────────────────────────────────────
+      if (data.startsWith("wire:joinA:")) {
+        const chatId = parseInt(data.slice("wire:joinA:".length), 10);
+        if (!isNaN(chatId)) { await handleWireJoin(bot, ctx, chatId, "A"); return; }
+      }
+      if (data.startsWith("wire:joinB:")) {
+        const chatId = parseInt(data.slice("wire:joinB:".length), 10);
+        if (!isNaN(chatId)) { await handleWireJoin(bot, ctx, chatId, "B"); return; }
+      }
+      if (data.startsWith("wire:start:")) {
+        const chatId = parseInt(data.slice("wire:start:".length), 10);
+        if (!isNaN(chatId)) { await handleWireStart(bot, ctx, chatId); return; }
+      }
+      if (data.startsWith("wire:cut:")) {
+        const parts  = data.split(":");
+        const chatId = parseInt(parts[2], 10);
+        const color  = parts[3] as WireColor;
+        if (!isNaN(chatId) && color) { await handleWireCut(bot, ctx, chatId, color); return; }
       }
 
       await ctx.answerCbQuery().catch(() => {});
