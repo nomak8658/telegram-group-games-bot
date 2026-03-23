@@ -18,7 +18,7 @@ WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY artifacts/api-server/package.json ./artifacts/api-server/package.json
 
-RUN pnpm install --frozen-lockfile --filter @workspace/api-server
+RUN pnpm install --filter @workspace/api-server
 
 COPY artifacts/api-server/ ./artifacts/api-server/
 
