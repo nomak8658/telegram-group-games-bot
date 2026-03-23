@@ -132,7 +132,68 @@ export interface OutsiderState {
   guessTimer?: ReturnType<typeof setTimeout>;
 }
 
-export type GameState = MenVsMenState | TrustBreakState | MafiaState | OutsiderState;
+// ─── Circle (الدائرة القاتلة) ──────────────────────────────────────────────────
+
+export interface CirclePlayer {
+  id: number;
+  username?: string;
+  firstName: string;
+  lastName: string;
+}
+
+export interface CircleChallenge {
+  kind: "math" | "starts" | "no_letter" | "race";
+  text: string;
+  expectedNum?: number;
+  letter?: string;
+  timerSec: number;
+}
+
+export interface CircleState {
+  type: "circle";
+  phase: "joining" | "playing" | "done";
+  players: Map<number, CirclePlayer>;
+  eliminated: CirclePlayer[];
+  hostId: number;
+  round: number;
+  challenge: CircleChallenge | null;
+  responses: Map<number, { text: string; timestamp: number }>;
+  usedChallenges: Set<string>;
+  doubleElim: boolean;
+  challengeMsgId?: number;
+  joinMsgId?: number;
+  joinTimer?: ReturnType<typeof setTimeout>;
+  joinWarnTimer?: ReturnType<typeof setTimeout>;
+  challengeTimer?: ReturnType<typeof setTimeout>;
+}
+
+// ─── Bomb (القنبلة المتنقلة) ────────────────────────────────────────────────
+
+export interface BombPlayer {
+  id: number;
+  username?: string;
+  firstName: string;
+  lastName: string;
+}
+
+export interface BombState {
+  type: "bomb";
+  phase: "joining" | "playing" | "done";
+  players: Map<number, BombPlayer>;
+  eliminated: BombPlayer[];
+  hostId: number;
+  round: number;
+  holderId: number;
+  prevHolderId: number | null;
+  frozenId: number | null;
+  bombMsgId?: number;
+  joinMsgId?: number;
+  joinTimer?: ReturnType<typeof setTimeout>;
+  joinWarnTimer?: ReturnType<typeof setTimeout>;
+  bombTimer?: ReturnType<typeof setTimeout>;
+}
+
+export type GameState = MenVsMenState | TrustBreakState | MafiaState | OutsiderState | CircleState | BombState;
 
 export const gameStates = new Map<number, GameState>();
 export const privateUserToGame = new Map<number, number>();
@@ -269,6 +330,12 @@ export function clearGame(chatId: number): void {
       s.voteTimer, s.voteWarnTimer,
       s.guessTimer,
     ].forEach((t) => t && clearTimeout(t));
+    for (const uid of s.players.keys()) privateUserToGame.delete(uid);
+  } else if (s.type === "circle") {
+    [s.joinTimer, s.joinWarnTimer, s.challengeTimer].forEach((t) => t && clearTimeout(t));
+    for (const uid of s.players.keys()) privateUserToGame.delete(uid);
+  } else if (s.type === "bomb") {
+    [s.joinTimer, s.joinWarnTimer, s.bombTimer].forEach((t) => t && clearTimeout(t));
     for (const uid of s.players.keys()) privateUserToGame.delete(uid);
   }
 
