@@ -10,6 +10,8 @@ import { logger } from "../../lib/logger.js";
 // ─── Timing ────────────────────────────────────────────────────────────────────
 const JOIN_MS          = 120_000;
 const JOIN_WARN_MS     =  70_000;
+const COORD_MS         =  90_000;  // 1.5 min mafia coordination
+const COORD_WARN_MS    =  60_000;  // warn at 30s remaining
 const DISCUSS_MS       = 150_000;  // 2.5 min open discussion
 const DISCUSS_WARN_MS  = 110_000;  // warn at 40s remaining
 const VOTE_MS          =  60_000;
@@ -114,6 +116,7 @@ export function startMafia(
     type: "mafia", phase: "joining",
     players: new Map(), round: 0, startedBy, chatId,
     actionsCompleted: new Set(), dayVotes: new Map(),
+    mafiaKillVotes: new Map(),
   };
   gameStates.set(chatId, s);
 
@@ -298,67 +301,119 @@ async function beginGame(bot: Telegraf, chatId: number, botUsername: string) {
     `🎭 <b>اللعبة بدأت!</b>\n\n` +
     `👥 اللاعبون (${list.length}):\n${playersStr}\n\n` +
     `📋 التوزيع: ${mafiaCount} مافيا + طبيب + محقق + ${list.length - mafiaCount - 2} مواطن\n\n` +
-    `الأدوار وصلت سراً... استعدوا للجولة الأولى! ⚡`,
+    `الأدوار وصلت سراً... الليل يحل الآن! 🌙`,
     { parse_mode: "HTML" }
-  ).then(() => setTimeout(() => startRound(bot, chatId), 3500))
+  ).then(() => setTimeout(() => startCoordination(bot, chatId), 3500))
    .catch((e) => logger.error({ err: e }, "mafia: begin"));
 }
 
-// ─── Round (discussion + special actions) ─────────────────────────────────────
-function startRound(bot: Telegraf, chatId: number) {
+// ─── Coordination phase (mafia kill + doctor/detective DMs) ───────────────────
+function startCoordination(bot: Telegraf, chatId: number) {
   const s = gameStates.get(chatId) as MafiaState | undefined;
   if (!s || s.type !== "mafia") return;
 
-  s.phase = "discussing";
   s.round++;
+  s.phase = "coordinating";
+  s.mafiaKillVotes = new Map();
+  s.mafiaKillTarget = undefined;
   s.doctorChoice = undefined;
   s.detectiveChoice = undefined;
   s.actionsCompleted = new Set();
   s.dayVotes = new Map();
 
-  const alive   = alivePlayers(s);
-  const doctor  = alive.find((p) => p.role === "doctor");
-  const detect  = alive.find((p) => p.role === "detective");
-
-  // Check win before starting new round
   const earlyWin = checkWin(s);
   if (earlyWin) { announceWinner(bot, chatId, earlyWin); return; }
+
+  const alive    = alivePlayers(s);
+  const mafiaAlive = alive.filter((p) => p.role === "mafia");
+  const nonMafia   = alive.filter((p) => p.role !== "mafia");
+  const doctor   = alive.find((p) => p.role === "doctor");
+  const detect   = alive.find((p) => p.role === "detective");
 
   // Group message
   bot.telegram.sendMessage(
     chatId,
-    `🗣️ <b>الجولة ${s.round} — النقاش الحر!</b>\n\n` +
+    `🌙 <b>الجولة ${s.round} — الليل يحل!</b>\n\n` +
     `👥 الأحياء (${alive.length}):\n${aliveListStr(s)}\n\n` +
-    `اتهموا، دافعوا، تحدّثوا بحرية!\n` +
-    (doctor ? `🩺 الدكتور يختار من يحمي سراً...\n` : ``) +
-    (detect  ? `🔍 المحقق يحقق سراً...\n` : ``) +
-    `\n⏳ <b>دقيقتان ونصف للنقاش</b> ثم التصويت!`,
+    `😈 المافيا تتآمر في السر...\n` +
+    (doctor ? `🩺 الدكتور يختار من يحمي...\n` : ``) +
+    (detect  ? `🔍 المحقق يتحرى في السر...\n` : ``) +
+    `\n⏳ <b>دقيقة ونصف</b> ثم يبدأ النقاش!`,
     { parse_mode: "HTML" }
-  ).catch((e) => logger.error({ err: e }, "mafia: round msg"));
+  ).catch((e) => logger.error({ err: e }, "mafia: coord msg"));
 
-  // Send special action DMs
+  // Mafia kill DMs
+  for (const m of mafiaAlive) {
+    bot.telegram.sendMessage(
+      m.id,
+      `😈 <b>الجولة ${s.round} — اختر ضحيتك!</b>\n\nمن تريد إقصاءه هذه الليلة؟\n<i>إذا اتفق عليه أغلبية المافيا يُقصى في نهاية الجولة</i>`,
+      { parse_mode: "HTML", ...playerActionKb(chatId, "mf:kill", nonMafia) }
+    ).catch(() => {});
+  }
+
+  // Doctor DM
   if (doctor) {
     bot.telegram.sendMessage(
       doctor.id,
-      `🩺 <b>الجولة ${s.round} — دور الدكتور</b>\n\nمن تحمي من الإقصاء هذه الجولة؟\n<i>إذا حصل على أكثر أصوات، لن يُقصى</i>\n<i>يمكنك حماية نفسك — لكن ليس جولتين متتاليتين</i>`,
+      `🩺 <b>الجولة ${s.round} — من تحمي؟</b>\n\nاختر لاعباً لحمايته من ضربة المافيا الليلة\n<i>يمكنك حماية نفسك — لكن ليس جولتين متتاليتين</i>`,
       { parse_mode: "HTML", ...playerActionKb(chatId, "mf:protect", alive) }
     ).catch(() => {});
   } else {
     s.actionsCompleted.add("doctor");
   }
 
+  // Detective DM
   if (detect) {
     const detectTargets = alive.filter((p) => p.id !== detect.id);
     bot.telegram.sendMessage(
       detect.id,
-      `🔍 <b>الجولة ${s.round} — دور المحقق</b>\n\nمن تحقق في هويته هذه الجولة؟`,
+      `🔍 <b>الجولة ${s.round} — من تحقق فيه؟</b>\n\nاختر لاعباً لمعرفة هويته سراً`,
       { parse_mode: "HTML", ...playerActionKb(chatId, "mf:invest", detectTargets) }
     ).catch(() => {});
   } else {
     s.actionsCompleted.add("detective");
   }
 
-  // Warn at 40s remaining
+  // Warn at 30s remaining
+  s.coordWarnTimer = setTimeout(() => {
+    const cur = gameStates.get(chatId) as MafiaState | undefined;
+    if (!cur || cur.phase !== "coordinating") return;
+    bot.telegram.sendMessage(chatId, `⚡ <b>30 ثانية!</b> النقاش يبدأ قريباً...`, { parse_mode: "HTML" }).catch(() => {});
+  }, COORD_WARN_MS);
+
+  s.coordTimer = setTimeout(() => startDiscussion(bot, chatId), COORD_MS);
+}
+
+// ─── Transition: coordination → discussion ────────────────────────────────────
+function startDiscussion(bot: Telegraf, chatId: number) {
+  const s = gameStates.get(chatId) as MafiaState | undefined;
+  if (!s || s.type !== "mafia" || s.phase !== "coordinating") return;
+
+  if (s.coordTimer)     clearTimeout(s.coordTimer);
+  if (s.coordWarnTimer) clearTimeout(s.coordWarnTimer);
+
+  // Resolve mafia kill target (majority vote)
+  const tally = new Map<number, number>();
+  for (const [, t] of s.mafiaKillVotes) tally.set(t, (tally.get(t) ?? 0) + 1);
+  let maxV = 0, chosenUid: number | null = null;
+  for (const [uid, cnt] of tally) {
+    if (cnt > maxV) { maxV = cnt; chosenUid = uid; }
+  }
+  s.mafiaKillTarget = chosenUid ?? undefined;
+
+  s.phase = "discussing";
+
+  const alive = alivePlayers(s);
+  bot.telegram.sendMessage(
+    chatId,
+    `☀️ <b>الجولة ${s.round} — النقاش الحر!</b>\n\n` +
+    `👥 الأحياء (${alive.length}):\n${aliveListStr(s)}\n\n` +
+    `اتهموا، دافعوا، وقنعوا القروب!\n` +
+    `<i>في نهاية النقاش ستصوتون على إقصاء أحد...</i>\n\n` +
+    `⏳ <b>دقيقتان ونصف للنقاش</b>`,
+    { parse_mode: "HTML" }
+  ).catch((e) => logger.error({ err: e }, "mafia: discuss msg"));
+
   s.discussWarnTimer = setTimeout(() => {
     const cur = gameStates.get(chatId) as MafiaState | undefined;
     if (!cur || cur.phase !== "discussing") return;
@@ -368,12 +423,44 @@ function startRound(bot: Telegraf, chatId: number) {
   s.discussTimer = setTimeout(() => startVoting(bot, chatId), DISCUSS_MS);
 }
 
+// ─── Mafia kill vote ───────────────────────────────────────────────────────────
+export function handleMafiaKill(
+  bot: Telegraf, ctx: Context, chatId: number, targetUid: number
+): void {
+  const s = gameStates.get(chatId) as MafiaState | undefined;
+  if (!s || s.type !== "mafia" || s.phase !== "coordinating") {
+    ctx.answerCbQuery("⚠️ ليس وقت الاستهداف الآن").catch(() => {}); return;
+  }
+  const voter = s.players.get(ctx.from!.id);
+  if (!voter || voter.role !== "mafia" || !voter.alive) {
+    ctx.answerCbQuery("🚫 فقط المافيا يختارون").catch(() => {}); return;
+  }
+  const target = s.players.get(targetUid);
+  if (!target || !target.alive) {
+    ctx.answerCbQuery("🚫 هدف غير صالح").catch(() => {}); return;
+  }
+
+  s.mafiaKillVotes.set(voter.id, targetUid);
+  ctx.answerCbQuery(`✅ اخترت ${dn(target)}`).catch(() => {});
+
+  bot.telegram.sendMessage(
+    voter.id,
+    `😈 اخترت <b>${esc(dn(target))}</b> للإقصاء الليلة.\n<i>إذا اتفق معك الفريق تنفّذ الضربة في نهاية الجولة!</i>`,
+    { parse_mode: "HTML" }
+  ).catch(() => {});
+
+  // If all alive mafia have voted → move to discussion immediately
+  const mafiaAlive = alivePlayers(s).filter((p) => p.role === "mafia");
+  const allVoted = mafiaAlive.every((p) => s.mafiaKillVotes.has(p.id));
+  if (allVoted) startDiscussion(bot, chatId);
+}
+
 // ─── Doctor protect ────────────────────────────────────────────────────────────
 export function handleMafiaProtect(
   bot: Telegraf, ctx: Context, chatId: number, targetUid: number
 ): void {
   const s = gameStates.get(chatId) as MafiaState | undefined;
-  if (!s || s.type !== "mafia" || s.phase !== "discussing") {
+  if (!s || s.type !== "mafia" || s.phase !== "coordinating") {
     ctx.answerCbQuery("⚠️ ليس وقت الحماية الآن").catch(() => {}); return;
   }
   const doctor = s.players.get(ctx.from!.id);
@@ -411,7 +498,7 @@ export function handleMafiaInvestigate(
   bot: Telegraf, ctx: Context, chatId: number, targetUid: number
 ): void {
   const s = gameStates.get(chatId) as MafiaState | undefined;
-  if (!s || s.type !== "mafia" || s.phase !== "discussing") {
+  if (!s || s.type !== "mafia" || s.phase !== "coordinating") {
     ctx.answerCbQuery("⚠️ ليس وقت التحقيق الآن").catch(() => {}); return;
   }
   const detective = s.players.get(ctx.from!.id);
@@ -519,12 +606,12 @@ function resolveVoting(bot: Telegraf, chatId: number) {
   const s = gameStates.get(chatId) as MafiaState | undefined;
   if (!s || s.type !== "mafia" || s.phase !== "voting") return;
 
-  if (s.voteTimer)    clearTimeout(s.voteTimer);
+  if (s.voteTimer)     clearTimeout(s.voteTimer);
   if (s.voteWarnTimer) clearTimeout(s.voteWarnTimer);
   if (s.dayVoteMsgId)
     bot.telegram.editMessageReplyMarkup(chatId, s.dayVoteMsgId, undefined, { inline_keyboard: [] }).catch(() => {});
 
-  // Tally
+  // ── Public vote tally ──
   const tally = new Map<number, number>();
   for (const [, t] of s.dayVotes) tally.set(t, (tally.get(t) ?? 0) + 1);
 
@@ -534,54 +621,50 @@ function resolveVoting(bot: Telegraf, chatId: number) {
     else if (cnt === maxVotes) tie = true;
   }
 
-  // No votes or tie → no elimination
+  let resultMsg = `📋 <b>نتائج الجولة ${s.round}:</b>\n\n`;
+
+  // ── Mafia kill ──
+  const killTarget = s.mafiaKillTarget ? s.players.get(s.mafiaKillTarget) : null;
+  if (killTarget && killTarget.alive) {
+    if (s.doctorChoice === killTarget.id) {
+      resultMsg += `😈 المافيا استهدفوا <b>${esc(dn(killTarget))}</b>...\n`;
+      resultMsg += `🩺 <b>الطبيب أنقذه في اللحظة الأخيرة!</b> نجا من الموت 🛡️\n\n`;
+    } else {
+      killTarget.alive = false;
+      resultMsg += `😈 <b>ضربة المافيا:</b> تم إقصاء <b>${esc(dn(killTarget))}</b>!\n`;
+      resultMsg += `🎭 دوره كان: <b>${ROLE_LABEL[killTarget.role]}</b>\n\n`;
+    }
+  } else if (!killTarget) {
+    resultMsg += `😈 المافيا لم تختر هدفاً هذه الليلة...\n\n`;
+  }
+
+  // ── Public vote ──
   if (!topUid || tie || maxVotes === 0) {
-    bot.telegram.sendMessage(
-      chatId,
-      `⚖️ <b>الأصوات متعادلة!</b>\n\nلم يُقصَ أحد هذه الجولة.\n\n<i>المافيا تستغل الفرصة... استعدوا للجولة القادمة!</i>`,
-      { parse_mode: "HTML" }
-    ).then(() => setTimeout(() => startRound(bot, chatId), 3000)).catch(() => {});
-    return;
+    resultMsg += `⚖️ <b>تصويت القروب:</b> الأصوات متعادلة — لم يُقصَ أحد!\n`;
+  } else {
+    const voteTarget = s.players.get(topUid)!;
+    resultMsg += `⚖️ <b>تصويت القروب:</b> `;
+    if (voteTarget.alive) {
+      voteTarget.alive = false;
+      resultMsg += `<b>${esc(dn(voteTarget))}</b> يُقصى بـ ${maxVotes} صوت!\n`;
+      resultMsg += `🎭 دوره كان: <b>${ROLE_LABEL[voteTarget.role]}</b>\n`;
+      resultMsg += voteTarget.role === "mafia"
+        ? `✅ <b>أصبتم! ضربة للمافيا 💥</b>`
+        : `😔 <b>كان بريئاً...</b>`;
+    } else {
+      resultMsg += `<b>${esc(dn(voteTarget))}</b> أُقصي بالفعل من ضربة المافيا — الأصوات ذهبت هباءً!`;
+    }
   }
 
-  const target = s.players.get(topUid)!;
-
-  // Check doctor protection
-  if (s.doctorChoice === topUid) {
-    bot.telegram.sendMessage(
-      chatId,
-      `🛡️ <b>الطبيب تدخّل!</b>\n\n<b>${esc(dn(target))}</b> كان الأكثر تصويتاً بـ ${maxVotes}...\n` +
-      `لكن الطبيب حماه — نجا من الإقصاء! 🩺✨\n\n` +
-      `<i>الجولة القادمة تبدأ الآن...</i>`,
-      { parse_mode: "HTML" }
-    ).then(() => {
-      const win = checkWin(s);
-      if (win) announceWinner(bot, chatId, win);
-      else setTimeout(() => startRound(bot, chatId), 3000);
-    }).catch(() => {});
-    return;
-  }
-
-  // Eliminate
-  target.alive = false;
-  const isMafia = target.role === "mafia";
-
-  bot.telegram.sendMessage(
-    chatId,
-    `⚖️ <b>قرار القروب:</b>\n\n` +
-    `<b>${esc(dn(target))}</b> يُقصى بـ <b>${maxVotes} أصوات!</b>\n\n` +
-    `🎭 دوره كان: <b>${ROLE_LABEL[target.role]}</b>\n\n` +
-    (isMafia
-      ? `✅ <b>أصبتم! ضربة للمافيا 💥</b>`
-      : `😔 <b>كان بريئاً...</b>\n<i>المافيا تضحك في الخفاء 😈</i>`),
-    { parse_mode: "HTML" }
-  ).then(() => {
-    setTimeout(() => {
-      const win = checkWin(s);
-      if (win) announceWinner(bot, chatId, win);
-      else startRound(bot, chatId);
-    }, 2500);
-  }).catch((e) => logger.error({ err: e }, "mafia: eliminate"));
+  bot.telegram.sendMessage(chatId, resultMsg, { parse_mode: "HTML" })
+    .then(() => {
+      setTimeout(() => {
+        const win = checkWin(s);
+        if (win) announceWinner(bot, chatId, win);
+        else startCoordination(bot, chatId);
+      }, 3000);
+    })
+    .catch((e) => logger.error({ err: e }, "mafia: resolve"));
 }
 
 // ─── Win ───────────────────────────────────────────────────────────────────────
