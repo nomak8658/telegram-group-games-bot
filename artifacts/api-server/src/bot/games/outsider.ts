@@ -3,7 +3,7 @@ import {
   gameStates, clearGame, privateUserToGame, recordWin, recordGame,
   esc, type OutsiderState, type OutsiderPlayer, type Player,
 } from "../state.js";
-import { generateOutsiderCard, generateInsiderCard } from "../outsiderCard.js";
+import { generateOutsiderCard, generateInsiderCard, generateRevealCard } from "../outsiderCard.js";
 import { logger } from "../../lib/logger.js";
 
 function dnO(p: OutsiderPlayer): string {
@@ -668,17 +668,36 @@ async function resolveVote(bot: Telegraf, chatId: number) {
 
   const outsiderPlayer = s.players.get(s.outsiderId!);
   const outsiderReveal = outsiderPlayer ? esc(dnO(outsiderPlayer)) : "؟";
+  const outsiderRawName = outsiderPlayer ? dnO(outsiderPlayer) : "؟";
 
+  // Show vote results
   await bot.telegram.sendMessage(chatId,
     `📊 <b>نتيجة التصويت:</b>\n\n${voteLines}\n\n` +
-    `━━━━━━━━━━━━━━━━━━\n` +
-    `🫥 <b>برا السالفة كان...</b> <b>${outsiderReveal}</b>!\n` +
-    `━━━━━━━━━━━━━━━━━━\n\n` +
-    (isOutsider
-      ? `✅ كشفتوه! لكن له فرصة أخيرة — يختار الكلمة الصح ويكسب نقطة! ⬇️`
-      : `❌ اتهمتوا الشخص الغلط!\n${outsiderReveal} الآن يختار الكلمة — لو خمّن صح يكسب! ⬇️`),
+    `🎯 أعلى أصوات: <b>${accusedPlayer ? esc(dnO(accusedPlayer)) : "تعادل / ما صوت أحد"}</b>`,
     { parse_mode: "HTML" }
   ).catch(() => {});
+
+  // Send dramatic reveal card
+  try {
+    const revealBuf = await generateRevealCard(outsiderRawName);
+    await bot.telegram.sendPhoto(chatId, { source: revealBuf }, {
+      caption:
+        `🫥 <b>برا السالفة كان...</b> <b>${outsiderReveal}</b>!\n\n` +
+        (isOutsider
+          ? `✅ كشفتوه! لكن له فرصة أخيرة — يختار الكلمة ويكسب نقطة 🎯`
+          : `❌ اتهمتوا الشخص الغلط!\n${outsiderReveal} الآن يختار الكلمة — لو صح يكسب! 🏆`),
+      parse_mode: "HTML",
+    });
+  } catch {
+    // Fallback to text if image fails
+    await bot.telegram.sendMessage(chatId,
+      `🫥 <b>برا السالفة كان...</b> <b>${outsiderReveal}</b>!\n\n` +
+      (isOutsider
+        ? `✅ كشفتوه! لكن له فرصة أخيرة — يختار الكلمة ويكسب نقطة 🎯`
+        : `❌ اتهمتوا الشخص الغلط!\n${outsiderReveal} الآن يختار الكلمة — لو صح يكسب! 🏆`),
+      { parse_mode: "HTML" }
+    ).catch(() => {});
+  }
 
   // Always give outsider the word-choice challenge
   await sendWordChoiceDM(bot, chatId);
