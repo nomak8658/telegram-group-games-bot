@@ -83,7 +83,7 @@ export async function startBomb(
     `💣 <b>القنبلة المتنقلة</b>\n\n` +
     `القنبلة تنتقل بين اللاعبين... واللي تنفجر عليه يطلع! 😈\n\n` +
     `👥 <b>اللاعبون (${s.players.size}):</b>\n${playerList(s)}\n\n` +
-    `اضغط <b>➕ انضم</b> للمشاركة!\n<i>60 ثانية للانضمام...</i>`,
+    `اضغط <b>➕ انضم</b> للمشاركة!\n<i>اضغط ▶️ ابدأ الآن عندما يكون الكل جاهز</i>`,
     {
       parse_mode: "HTML",
       ...Markup.inlineKeyboard([
@@ -94,18 +94,6 @@ export async function startBomb(
   ).catch(() => null);
 
   if (msg) s.joinMsgId = msg.message_id;
-
-  s.joinWarnTimer = setTimeout(() => {
-    const gs = gameStates.get(chatId);
-    if (!gs || gs.type !== "bomb" || gs.phase !== "joining") return;
-    bot.telegram.sendMessage(
-      chatId,
-      `⏳ <b>تبقى 20 ثانية!</b> ${gs.players.size} لاعب الآن 💣`,
-      { parse_mode: "HTML" }
-    ).catch(() => {});
-  }, JOIN_WARN_MS);
-
-  s.joinTimer = setTimeout(() => launchBomb(bot, chatId), JOIN_MS);
 }
 
 export async function handleBombJoin(bot: Telegraf, ctx: Context, chatId: number): Promise<void> {
