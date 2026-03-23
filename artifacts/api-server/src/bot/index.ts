@@ -16,21 +16,27 @@ import {
   handleMafiaKill, handleMafiaProtect, handleMafiaInvestigate,
   handleMafiaReady, handleMafiaVote,
 } from "./games/mafia.js";
+import {
+  startOutsider, handleOutsiderJoin, handleOutsiderForceStart,
+  handleOutsiderVote, handleOutsiderGuess,
+} from "./games/outsider.js";
 
 function menuMsg() {
   return (
     `🎮 <b>اختار لعبتك</b>\n\n` +
     `🥊 <b>مين ضد مين</b>\n<i>موضوع عشوائي — شخصان يتجادلان والقروب يصوت</i>\n\n` +
     `💀 <b>كسر الثقة</b>\n<i>الكل يكتب رأيه الصريح سراً، والضحية تخمن كاتب الأقسى</i>\n\n` +
-    `🎭 <b>المافيا</b>\n<i>نقاش مفتوح، أدوار سرية، تصويت — من يكشف المافيا أولاً؟</i>`
+    `🎭 <b>المافيا</b>\n<i>نقاش مفتوح، أدوار سرية، تصويت — من يكشف المافيا أولاً؟</i>\n\n` +
+    `🫥 <b>برا السالفة</b>\n<i>شخص ما يعرف الموضوع — الكل يلمّح وأنت تكتشف!</i>`
   );
 }
 
 function menuKeyboard(chatId: number) {
   return Markup.inlineKeyboard([
-    [Markup.button.callback("🥊  مين ضد مين",  `menu:mvs:${chatId}`)],
-    [Markup.button.callback("💀  كسر الثقة",   `menu:tb:${chatId}`)],
-    [Markup.button.callback("🎭  المافيا",      `menu:mafia:${chatId}`)],
+    [Markup.button.callback("🥊  مين ضد مين",   `menu:mvs:${chatId}`)],
+    [Markup.button.callback("💀  كسر الثقة",    `menu:tb:${chatId}`)],
+    [Markup.button.callback("🎭  المافيا",       `menu:mafia:${chatId}`)],
+    [Markup.button.callback("🫥  برا السالفة",  `menu:outsider:${chatId}`)],
   ]);
 }
 
@@ -183,6 +189,11 @@ export async function launchBot(): Promise<void> {
     startMafia(bot, ctx.chat.id, ctx.from.id, botUsername);
   });
 
+  bot.command("outsider", (ctx) => {
+    if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
+    startOutsider(bot, ctx);
+  });
+
   bot.command("menvsmen", (ctx) => {
     if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
     const chatId = ctx.chat.id;
@@ -267,6 +278,16 @@ export async function launchBot(): Promise<void> {
         return;
       }
 
+      if (data.startsWith("menu:outsider:")) {
+        const chatId = parseInt(data.slice("menu:outsider:".length), 10);
+        if (isNaN(chatId)) return;
+        if (gameStates.has(chatId)) { await ctx.answerCbQuery("⚠️ في لعبة شغالة!").catch(() => {}); return; }
+        await ctx.answerCbQuery("🫥").catch(() => {});
+        ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
+        await startOutsider(bot, ctx);
+        return;
+      }
+
       // ── مين ضد مين ────────────────────────────────────────────────────────────
       if (data.startsWith("mvs:react:")) {
         const parts = data.split(":");
@@ -341,6 +362,22 @@ export async function launchBot(): Promise<void> {
         if (!isNaN(chatId) && !isNaN(targetUid)) { handleMafiaVote(bot, ctx, chatId, targetUid); return; }
       }
 
+      // ── برا السالفة ────────────────────────────────────────────────────────────
+      if (data.startsWith("out:join:")) {
+        const chatId = parseInt(data.slice("out:join:".length), 10);
+        if (!isNaN(chatId)) { handleOutsiderJoin(bot, ctx, chatId); return; }
+      }
+      if (data.startsWith("out:fstart:")) {
+        const chatId = parseInt(data.slice("out:fstart:".length), 10);
+        if (!isNaN(chatId)) { handleOutsiderForceStart(bot, ctx, chatId); return; }
+      }
+      if (data.startsWith("out:vote:")) {
+        const parts = data.split(":");
+        const chatId   = parseInt(parts[2], 10);
+        const targetId = parseInt(parts[3], 10);
+        if (!isNaN(chatId) && !isNaN(targetId)) { handleOutsiderVote(bot, ctx, chatId, targetId); return; }
+      }
+
       await ctx.answerCbQuery().catch(() => {});
     } catch (e) {
       logger.error({ err: e }, "callback error");
@@ -357,12 +394,15 @@ export async function launchBot(): Promise<void> {
 
     // Private chat
     if (ctx.chat.type === "private") {
-      // Check if this user is in a mafia game (just needs DM channel open — no text action needed)
       const chatId = privateUserToGame.get(uid);
       if (chatId) {
         const gs = gameStates.get(chatId);
         if (gs?.type === "mafia") {
           ctx.reply("🎭 المافيا — الطبيب والمحقق يتصرفون عبر الأزرار في بداية كل جولة.\nالتصويت في القروب! 🗳️").catch(() => {});
+          return;
+        }
+        if (gs?.type === "outsider" && gs.phase === "guessing" && uid === gs.outsiderId) {
+          handleOutsiderGuess(bot, chatId, uid, text);
           return;
         }
       }
