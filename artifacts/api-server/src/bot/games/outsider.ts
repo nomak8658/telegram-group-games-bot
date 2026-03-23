@@ -666,12 +666,17 @@ async function resolveVote(bot: Telegraf, chatId: number) {
     return `${esc(dnO(p))}: ${bar} (${cnt})`;
   }).join("\n");
 
+  const outsiderPlayer = s.players.get(s.outsiderId!);
+  const outsiderReveal = outsiderPlayer ? esc(dnO(outsiderPlayer)) : "؟";
+
   await bot.telegram.sendMessage(chatId,
     `📊 <b>نتيجة التصويت:</b>\n\n${voteLines}\n\n` +
-    `🎯 أعلى أصوات: <b>${accusedPlayer ? esc(dnO(accusedPlayer)) : "تعادل / ما صوت أحد"}</b>\n\n` +
+    `━━━━━━━━━━━━━━━━━━\n` +
+    `🫥 <b>برا السالفة كان...</b> <b>${outsiderReveal}</b>!\n` +
+    `━━━━━━━━━━━━━━━━━━\n\n` +
     (isOutsider
-      ? `✅ <b>كشفتوه! هو فعلاً برا السالفة.</b>\nلكن له فرصة أخيرة — يخمّن الكلمة! ⬇️`
-      : `❌ <b>اتهمتوا الشخص الغلط!</b>\nبرا السالفة ينقذ نفسه بتخمين الكلمة! ⬇️`),
+      ? `✅ كشفتوه! لكن له فرصة أخيرة — يختار الكلمة الصح ويكسب نقطة! ⬇️`
+      : `❌ اتهمتوا الشخص الغلط!\n${outsiderReveal} الآن يختار الكلمة — لو خمّن صح يكسب! ⬇️`),
     { parse_mode: "HTML" }
   ).catch(() => {});
 
@@ -741,29 +746,47 @@ async function finalizeGame(
   const outsider       = s.players.get(s.outsiderId!);
   const insiders       = [...s.players.values()].filter((p) => p.id !== s.outsiderId);
   const outsiderName   = outsider ? esc(dnO(outsider)) : "؟";
-  const insiderNames   = insiders.map((p) => esc(dnO(p))).join("، ");
 
+  // ── Points: correct voters (voted for the outsider) ──────────────────────
+  const correctVoters = [...s.votes.entries()]
+    .filter(([, target]) => target === s.outsiderId)
+    .map(([voterId]) => s.players.get(voterId))
+    .filter((p): p is OutsiderPlayer => !!p);
+
+  for (const v of correctVoters) recordWin(chatId, toPlayer(v));
+
+  // ── Points: outsider guessed correctly ────────────────────────────────────
+  if (outsiderGuessedRight && outsider) recordWin(chatId, toPlayer(outsider));
+
+  // ── Count game for all ────────────────────────────────────────────────────
+  recordGame(chatId, [...s.players.values()].map(toPlayer));
+
+  // ── Result message ────────────────────────────────────────────────────────
   let resultMsg = `🫥 <b>انتهت اللعبة!</b>\n\n`;
-  resultMsg    += `🔑 الكلمة السرية كانت: <b>${esc(s.topic ?? "؟")}</b>\n`;
-  resultMsg    += `📂 الفئة: ${s.category ?? ""}\n\n`;
-  resultMsg    += `👤 برا السالفة: <b>${outsiderName}</b>\n`;
-  resultMsg    += `👥 داخل السالفة: ${insiderNames}\n\n`;
+  resultMsg    += `🔑 الكلمة السرية: <b>${esc(s.topic ?? "؟")}</b>  |  ${s.category ?? ""}\n`;
+  resultMsg    += `👤 برا السالفة: <b>${outsiderName}</b>\n\n`;
 
   if (outsiderGuessedRight) {
-    // Outsider guessed correctly → outsider wins regardless of being caught
-    resultMsg += `🏆 <b>برا السالفة يكسب!</b>\n${outsiderName} عرف الكلمة الصح وانقذ نفسه! 🎯`;
-    if (outsider) recordWin(chatId, toPlayer(outsider));
-  } else if (!outsiderCaught) {
-    // Not caught and guessed wrong → outsider wins (escaped voting)
-    resultMsg += `🏆 <b>برا السالفة يكسب!</b>\n${outsiderName} نجا من التصويت ولم يخمّن الكلمة — الفريق خسر! 😈`;
-    if (outsider) recordWin(chatId, toPlayer(outsider));
+    resultMsg += `🎯 <b>${outsiderName} خمّن الكلمة الصح — يكسب نقطة!</b>\n`;
+  } else if (outsiderCaught) {
+    resultMsg += `🎉 <b>كشفوا برا السالفة وما قدر يخمن!</b>\n`;
   } else {
-    // Caught AND guessed wrong → insiders win
-    resultMsg += `🏆 <b>الفريق الداخلي يكسب!</b>\nكشفوا برا السالفة وما قدر يخمن الكلمة! 🎉`;
-    for (const p of insiders) recordWin(chatId, toPlayer(p));
+    resultMsg += `😈 <b>${outsiderName} نجا من التصويت!</b>\n`;
   }
 
-  recordGame(chatId, [...s.players.values()].map(toPlayer));
+  // Points summary
+  const pointLines: string[] = [];
+  if (correctVoters.length > 0) {
+    pointLines.push(`🗳 صوّتوا صح (+1 نقطة): ${correctVoters.map((p) => esc(dnO(p))).join("، ")}`);
+  }
+  if (outsiderGuessedRight && outsider) {
+    pointLines.push(`🎯 خمّن الكلمة (+1 نقطة): ${outsiderName}`);
+  }
+  if (pointLines.length > 0) {
+    resultMsg += `\n<b>النقاط اللي اتمنحت:</b>\n${pointLines.join("\n")}`;
+  } else {
+    resultMsg += `\n<i>ما أحد كسب نقطة هالجولة!</i>`;
+  }
 
   await bot.telegram.sendMessage(chatId, resultMsg, { parse_mode: "HTML" }).catch(() => {});
 
