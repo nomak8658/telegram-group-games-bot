@@ -572,6 +572,70 @@ export async function handleOutsiderVote(
   if (s.votes.size >= s.players.size) resolveVote(bot, chatId);
 }
 
+// ─── Build word choices (correct + 4 decoys from same category) ───────────────
+function buildWordChoices(category: string, topic: string): string[] {
+  const pool = (ALL_TOPICS[category] ?? []).filter((w) => w !== topic);
+  // Shuffle pool
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  const choices = [topic, ...pool.slice(0, 4)];
+  // Shuffle choices
+  for (let i = choices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [choices[i], choices[j]] = [choices[j], choices[i]];
+  }
+  return choices;
+}
+
+// ─── Send word-choice keyboard to outsider via DM ────────────────────────────
+async function sendWordChoiceDM(bot: Telegraf, chatId: number) {
+  const s = gameStates.get(chatId);
+  if (!s || s.type !== "outsider") return;
+
+  const outsider = s.players.get(s.outsiderId!);
+  if (!outsider) { finalizeGame(bot, chatId, false); return; }
+
+  const choices = buildWordChoices(s.category!, s.topic!);
+  s.wordChoices = choices;
+
+  const caught = s.outsiderCaught ?? false;
+  const intro  = caught
+    ? `🫥 <b>اكتشفوك — لكن عندك فرصة أخيرة!</b>\n\nخمّن الكلمة السرية واكسب! 🎯`
+    : `🫥 <b>نجوت من التصويت — الآن خمّن الكلمة!</b>\n\nاختر الكلمة الصح من القائمة وتفوز! 🏆`;
+
+  const buttons = choices.map((w, i) =>
+    [Markup.button.callback(w, `out:guess:${chatId}:${i}`)]
+  );
+
+  try {
+    await bot.telegram.sendMessage(outsider.id,
+      `${intro}\n\n<i>الفئة: ${s.category}</i>\n\n<b>اختر الكلمة:</b>`,
+      { parse_mode: "HTML", ...Markup.inlineKeyboard(buttons) }
+    );
+    // Announce in group
+    await bot.telegram.sendMessage(chatId,
+      caught
+        ? `🫥 <b>${esc(dnO(outsider))}</b> عنده <b>45 ثانية</b> يختار الكلمة السرية من قائمة!\n\nانتظروا... ⏳`
+        : `😏 <b>اتهمتوا الشخص الغلط!</b>\n\n` +
+          `برا السالفة هو <b>${esc(dnO(outsider))}</b> 🫥\n` +
+          `الآن يخمّن الكلمة — عنده <b>45 ثانية</b>! ⏳`,
+      { parse_mode: "HTML" }
+    ).catch(() => {});
+  } catch {
+    // Can't DM → finalize without guess
+    await bot.telegram.sendMessage(chatId,
+      `⚠️ ما قدرنا نرسل للاعب الخاص! تأكد إنه فتح المحادثة مع البوت.`,
+      { parse_mode: "HTML" }
+    ).catch(() => {});
+    finalizeGame(bot, chatId, false);
+    return;
+  }
+
+  s.guessTimer = setTimeout(() => finalizeGame(bot, chatId, false), GUESS_MS);
+}
+
 // ─── Resolve vote ──────────────────────────────────────────────────────────────
 async function resolveVote(bot: Telegraf, chatId: number) {
   const s = gameStates.get(chatId);
@@ -593,124 +657,108 @@ async function resolveVote(bot: Telegraf, chatId: number) {
 
   const accusedPlayer = accused ? s.players.get(accused) : null;
   const isOutsider    = accused === s.outsiderId;
+  s.outsiderCaught    = isOutsider;
 
   // Show vote results
   const voteLines = [...s.players.values()].map((p) => {
     const cnt = tally.get(p.id) ?? 0;
-    const bar = "🔸".repeat(cnt) || "—";
+    const bar = "🔸".repeat(Math.min(cnt, 8)) || "—";
     return `${esc(dnO(p))}: ${bar} (${cnt})`;
   }).join("\n");
 
   await bot.telegram.sendMessage(chatId,
     `📊 <b>نتيجة التصويت:</b>\n\n${voteLines}\n\n` +
-    `🎯 أعلى أصوات: <b>${accusedPlayer ? esc(dnO(accusedPlayer)) : "تعادل"}</b>`,
+    `🎯 أعلى أصوات: <b>${accusedPlayer ? esc(dnO(accusedPlayer)) : "تعادل / ما صوت أحد"}</b>\n\n` +
+    (isOutsider
+      ? `✅ <b>كشفتوه! هو فعلاً برا السالفة.</b>\nلكن له فرصة أخيرة — يخمّن الكلمة! ⬇️`
+      : `❌ <b>اتهمتوا الشخص الغلط!</b>\nبرا السالفة ينقذ نفسه بتخمين الكلمة! ⬇️`),
     { parse_mode: "HTML" }
   ).catch(() => {});
 
-  if (!isOutsider) {
-    // Wrong person accused → outsider gets to guess
-    const outsider = s.players.get(s.outsiderId!);
-    await bot.telegram.sendMessage(chatId,
-      `😏 <b>اتهمتوا الشخص الغلط!</b>\n\n` +
-      `برا السالفة هو <b>${outsider ? esc(dnO(outsider)) : "؟"}</b> 🫥\n\n` +
-      `الآن له فرصة <b>45 ثانية</b> يخمن الكلمة خاص للبوت وينقذ نفسه!`,
-      { parse_mode: "HTML" }
-    ).catch(() => {});
-
-    if (outsider) {
-      bot.telegram.sendMessage(outsider.id,
-        `🎯 <b>اتهموا شخص ثاني — فرصتك الذهبية!</b>\n\n` +
-        `خمّن الكلمة السرية وأرسلها هنا خلال <b>45 ثانية</b> واكسب!\n\n` +
-        `<i>الفئة: ${s.category}</i>`,
-        { parse_mode: "HTML" }
-      ).catch(() => {});
-    }
-
-    setTimeout(() => finalizeGame(bot, chatId, false, false), GUESS_MS);
-  } else {
-    // Correct! Outsider gets one guess
-    const outsider = s.players.get(s.outsiderId!);
-    await bot.telegram.sendMessage(chatId,
-      `🎉 <b>كشفتوه!</b>\n\n` +
-      `برا السالفة هو <b>${outsider ? esc(dnO(outsider)) : "؟"}</b> 🫥\n\n` +
-      `لكن... له فرصة أخيرة! إذا خمّن الكلمة السرية يكسب! 🎯\n` +
-      `عنده <b>45 ثانية</b> يرسلها خاص للبوت.`,
-      { parse_mode: "HTML" }
-    ).catch(() => {});
-
-    if (outsider) {
-      bot.telegram.sendMessage(outsider.id,
-        `🎯 <b>اكتشفوك — لكن عندك فرصة!</b>\n\n` +
-        `خمّن الكلمة السرية وأرسلها هنا خلال <b>45 ثانية</b> واكسب!\n\n` +
-        `<i>الفئة: ${s.category}</i>`,
-        { parse_mode: "HTML" }
-      ).catch(() => {});
-    }
-
-    setTimeout(() => finalizeGame(bot, chatId, true, false), GUESS_MS);
-  }
+  // Always give outsider the word-choice challenge
+  await sendWordChoiceDM(bot, chatId);
 }
 
-// ─── Handle outsider's guess ───────────────────────────────────────────────────
-export async function handleOutsiderGuess(
-  bot: Telegraf, chatId: number, uid: number, text: string
+// ─── Handle outsider's word pick (button) ────────────────────────────────────
+export async function handleOutsiderWordPick(
+  bot: Telegraf, ctx: Context, chatId: number, choiceIndex: number
 ) {
-  const s = gameStates.get(chatId);
-  if (!s || s.type !== "outsider" || s.phase !== "guessing" || uid !== s.outsiderId) return;
+  const uid = (ctx.from as any).id;
+  const s   = gameStates.get(chatId);
 
-  const guess   = text.trim().toLowerCase();
-  const correct = s.topic!.toLowerCase();
-  const isRight = guess === correct || correct.includes(guess) || guess.includes(correct);
+  if (!s || s.type !== "outsider" || s.phase !== "guessing") {
+    ctx.answerCbQuery("انتهى وقت التخمين!").catch(() => {}); return;
+  }
+  if (uid !== s.outsiderId) {
+    ctx.answerCbQuery("مو دورك!").catch(() => {}); return;
+  }
+  if (!s.wordChoices || choiceIndex < 0 || choiceIndex >= s.wordChoices.length) {
+    ctx.answerCbQuery("خيار غير صالح").catch(() => {}); return;
+  }
+
+  const chosen  = s.wordChoices[choiceIndex];
+  const correct = s.topic!;
+  const isRight = chosen === correct;
+
+  // Cancel the timeout
+  if (s.guessTimer) { clearTimeout(s.guessTimer); s.guessTimer = undefined; }
 
   if (isRight) {
-    await bot.telegram.sendMessage(uid,
-      `🎉 <b>صح! الكلمة كانت "${s.topic}"!</b>\n\nيتم إعلان النتيجة في القروب...`,
+    await ctx.editMessageText(
+      `✅ <b>اخترت: ${esc(chosen)}</b>\n\n🎉 صح! يتم إعلان النتيجة...`,
       { parse_mode: "HTML" }
     ).catch(() => {});
-    await finalizeGame(bot, chatId, true, true, uid);
   } else {
-    await bot.telegram.sendMessage(uid,
-      `❌ خطأ! جرّب مرة ثانية قبل ما تنتهي الوقت.`,
+    await ctx.editMessageText(
+      `❌ <b>اخترت: ${esc(chosen)}</b>\n\nالكلمة الصحيحة كانت: <b>${esc(correct)}</b>`,
       { parse_mode: "HTML" }
     ).catch(() => {});
   }
+
+  ctx.answerCbQuery(isRight ? "🎉 صح!" : "❌ خطأ!").catch(() => {});
+
+  await finalizeGame(bot, chatId, isRight);
 }
 
+// ─── Kept for backwards-compat (unused now) ──────────────────────────────────
+export async function handleOutsiderGuess(
+  _bot: Telegraf, _chatId: number, _uid: number, _text: string
+) { /* replaced by button-based picking */ }
+
 // ─── Finalize game ─────────────────────────────────────────────────────────────
+// outsiderGuessedRight = did outsider pick the correct word?
 async function finalizeGame(
   bot: Telegraf,
   chatId: number,
-  outsiderCaught: boolean,
   outsiderGuessedRight: boolean,
-  guesserId?: number
 ) {
   const s = gameStates.get(chatId);
   if (!s || s.type !== "outsider") return;
-
+  if (s.phase === "done") return;
   s.phase = "done";
 
+  const outsiderCaught = s.outsiderCaught ?? false;
   const outsider       = s.players.get(s.outsiderId!);
   const insiders       = [...s.players.values()].filter((p) => p.id !== s.outsiderId);
   const outsiderName   = outsider ? esc(dnO(outsider)) : "؟";
   const insiderNames   = insiders.map((p) => esc(dnO(p))).join("، ");
 
   let resultMsg = `🫥 <b>انتهت اللعبة!</b>\n\n`;
-  resultMsg    += `🔑 الكلمة السرية كانت: <b>${esc(s.topic!)}</b>\n`;
-  resultMsg    += `📂 الفئة: ${s.category}\n\n`;
+  resultMsg    += `🔑 الكلمة السرية كانت: <b>${esc(s.topic ?? "؟")}</b>\n`;
+  resultMsg    += `📂 الفئة: ${s.category ?? ""}\n\n`;
   resultMsg    += `👤 برا السالفة: <b>${outsiderName}</b>\n`;
   resultMsg    += `👥 داخل السالفة: ${insiderNames}\n\n`;
 
-  let winnerId: number | null = null;
-
   if (outsiderGuessedRight) {
-    resultMsg += `🏆 <b>برا السالفة يكسب!</b>\n${outsiderName} خمّن الكلمة الصح وانقذ نفسه! 🎯`;
-    winnerId   = s.outsiderId!;
+    // Outsider guessed correctly → outsider wins regardless of being caught
+    resultMsg += `🏆 <b>برا السالفة يكسب!</b>\n${outsiderName} عرف الكلمة الصح وانقذ نفسه! 🎯`;
     if (outsider) recordWin(chatId, toPlayer(outsider));
   } else if (!outsiderCaught) {
-    resultMsg += `🏆 <b>برا السالفة يكسب!</b>\n${outsiderName} نجا من الكشف وفاز الفريق الخطأ! 😈`;
-    winnerId   = s.outsiderId!;
+    // Not caught and guessed wrong → outsider wins (escaped voting)
+    resultMsg += `🏆 <b>برا السالفة يكسب!</b>\n${outsiderName} نجا من التصويت ولم يخمّن الكلمة — الفريق خسر! 😈`;
     if (outsider) recordWin(chatId, toPlayer(outsider));
   } else {
+    // Caught AND guessed wrong → insiders win
     resultMsg += `🏆 <b>الفريق الداخلي يكسب!</b>\nكشفوا برا السالفة وما قدر يخمن الكلمة! 🎉`;
     for (const p of insiders) recordWin(chatId, toPlayer(p));
   }
