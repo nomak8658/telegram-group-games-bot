@@ -394,11 +394,11 @@ export async function launchBot(): Promise<void> {
 
       // ── برا السالفة ────────────────────────────────────────────────────────────
       if (data.startsWith("out:cat:")) {
-        const rest = data.slice("out:cat:".length);
-        const colonIdx = rest.indexOf(":");
-        const chatId = parseInt(rest.slice(0, colonIdx), 10);
-        const catEnc = rest.slice(colonIdx + 1);
-        if (!isNaN(chatId)) { handleOutsiderCatToggle(bot, ctx, chatId, catEnc); return; }
+        const parts = data.split(":");
+        // format: out:cat:{chatId}:{index}
+        const chatId = parseInt(parts[2], 10);
+        const catIdx = parseInt(parts[3], 10);
+        if (!isNaN(chatId) && !isNaN(catIdx)) { handleOutsiderCatToggle(bot, ctx, chatId, catIdx); return; }
       }
       if (data.startsWith("out:catall:")) {
         const chatId = parseInt(data.slice("out:catall:".length), 10);
