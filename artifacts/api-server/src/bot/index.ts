@@ -20,6 +20,7 @@ import {
   startOutsider, handleOutsiderJoin, handleOutsiderForceStart,
   handleOutsiderVote, handleOutsiderGuess, handleOutsiderWordPick,
   handleOutsiderCatToggle, handleOutsiderCatAll, handleOutsiderCatDone,
+  handleOutsiderSkipVote,
 } from "./games/outsider.js";
 import { generateTopCard } from "./topCard.js";
 
@@ -415,6 +416,10 @@ export async function launchBot(): Promise<void> {
       if (data.startsWith("out:fstart:")) {
         const chatId = parseInt(data.slice("out:fstart:".length), 10);
         if (!isNaN(chatId)) { handleOutsiderForceStart(bot, ctx, chatId); return; }
+      }
+      if (data.startsWith("out:skipvote:")) {
+        const chatId = parseInt(data.slice("out:skipvote:".length), 10);
+        if (!isNaN(chatId)) { handleOutsiderSkipVote(bot, ctx, chatId); return; }
       }
       if (data.startsWith("out:vote:")) {
         const parts = data.split(":");
