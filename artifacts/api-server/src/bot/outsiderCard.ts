@@ -366,3 +366,168 @@ export async function generateInsiderCard(
 
   return canvas.toBuffer("image/png") as unknown as Buffer;
 }
+
+// ─── Reveal card: shown in group when outsider is unmasked ────────────────────
+export async function generateRevealCard(playerName: string): Promise<Buffer> {
+  await ensureFonts();
+  const cv = await getCanvas();
+
+  const W2 = 800, H2 = 480;
+  const canvas = cv.createCanvas(W2, H2);
+  const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D;
+
+  // ── 1. Deep black bg ───────────────────────────────────────────────────────
+  ctx.fillStyle = "#03000a";
+  ctx.fillRect(0, 0, W2, H2);
+
+  // ── 2. Bottom-centre dramatic spotlight ────────────────────────────────────
+  const spotlight = ctx.createRadialGradient(W2 / 2, H2 + 60, 20, W2 / 2, H2 + 60, 520);
+  spotlight.addColorStop(0,    "rgba(180, 80, 255, 0.55)");
+  spotlight.addColorStop(0.35, "rgba(120, 30, 200, 0.25)");
+  spotlight.addColorStop(0.65, "rgba(60,  10, 120, 0.10)");
+  spotlight.addColorStop(1,    "rgba(0,   0,   0,  0)");
+  ctx.fillStyle = spotlight;
+  ctx.fillRect(0, 0, W2, H2);
+
+  // ── 3. Top-centre subtle purple glow ──────────────────────────────────────
+  const topGlow = ctx.createRadialGradient(W2 / 2, -30, 10, W2 / 2, -30, 320);
+  topGlow.addColorStop(0,   "rgba(160, 60, 255, 0.30)");
+  topGlow.addColorStop(0.5, "rgba(100, 20, 200, 0.08)");
+  topGlow.addColorStop(1,   "rgba(0, 0, 0, 0)");
+  ctx.fillStyle = topGlow;
+  ctx.fillRect(0, 0, W2, H2);
+
+  // ── 4. Fine horizontal scanline texture ───────────────────────────────────
+  ctx.save();
+  ctx.globalAlpha = 0.025;
+  for (let y = 0; y < H2; y += 4) {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, y, W2, 1);
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // ── 5. Outer border ────────────────────────────────────────────────────────
+  ctx.save();
+  roundRect(ctx, 3, 3, W2 - 6, H2 - 6, 18);
+  ctx.strokeStyle = "rgba(180, 80, 255, 0.28)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.restore();
+
+  // ── 6. Left + right thin stripe ───────────────────────────────────────────
+  for (const x of [0, W2 - 6]) {
+    const s = ctx.createLinearGradient(0, 0, 0, H2);
+    s.addColorStop(0, "transparent");
+    s.addColorStop(0.5, "#a855f7");
+    s.addColorStop(1, "transparent");
+    ctx.fillStyle = s;
+    ctx.fillRect(x, 0, 6, H2);
+  }
+
+  // ── 7. Top pill: "انكشف!" ─────────────────────────────────────────────────
+  const pillW = 180, pillH = 38, pillX = (W2 - pillW) / 2, pillY = 36;
+  ctx.save();
+  roundRect(ctx, pillX, pillY, pillW, pillH, pillH / 2);
+  ctx.fillStyle = "rgba(168, 85, 247, 0.22)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(168, 85, 247, 0.55)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  ctx.direction = "rtl";
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#d8b4fe";
+  ctx.font = "bold 19px CairoBold";
+  ctx.fillText("🎭 انكشف!", W2 / 2, pillY + 26);
+  ctx.restore();
+
+  // ── 8. "برا السالفة" heading ──────────────────────────────────────────────
+  ctx.save();
+  ctx.direction = "rtl";
+  ctx.textAlign = "center";
+  ctx.fillStyle = "rgba(255,255,255,0.55)";
+  ctx.font = "28px Cairo";
+  ctx.fillText("برا السالفة", W2 / 2, 136);
+  ctx.restore();
+
+  // ── 9. "هو..." suspense text ──────────────────────────────────────────────
+  ctx.save();
+  ctx.direction = "rtl";
+  ctx.textAlign = "center";
+  ctx.fillStyle = "rgba(216, 180, 254, 0.70)";
+  ctx.font = "bold 46px CairoBold";
+  ctx.fillText("هـو ...", W2 / 2, 210);
+  ctx.restore();
+
+  // ── 10. Divider glow line ─────────────────────────────────────────────────
+  const dv = ctx.createLinearGradient(80, 0, W2 - 80, 0);
+  dv.addColorStop(0,   "transparent");
+  dv.addColorStop(0.4, "rgba(168,85,247,0.6)");
+  dv.addColorStop(0.6, "rgba(168,85,247,0.6)");
+  dv.addColorStop(1,   "transparent");
+  ctx.strokeStyle = dv;
+  ctx.lineWidth   = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(80, 232);
+  ctx.lineTo(W2 - 80, 232);
+  ctx.stroke();
+
+  // ── 11. HUGE player name ──────────────────────────────────────────────────
+  const displayName = playerName.length > 16 ? playerName.slice(0, 16) + "…" : playerName;
+  const nameFontSize = displayName.length > 10 ? 72 : displayName.length > 7 ? 86 : 100;
+  ctx.save();
+  ctx.direction   = "rtl";
+  ctx.textAlign   = "center";
+  ctx.shadowColor = "#c026d3";
+  ctx.shadowBlur  = 40;
+  ctx.fillStyle   = "#ffffff";
+  ctx.font        = `bold ${nameFontSize}px CairoBold`;
+  ctx.fillText(displayName, W2 / 2, 350);
+  ctx.shadowColor = "#a855f7";
+  ctx.shadowBlur  = 60;
+  ctx.fillText(displayName, W2 / 2, 350);
+  ctx.shadowBlur  = 0;
+  ctx.restore();
+
+  // ── 12. Decorative corner dots ────────────────────────────────────────────
+  const dots = [
+    [70, 70], [W2 - 70, 70], [70, H2 - 70], [W2 - 70, H2 - 70],
+    [W2 / 2 - 120, H2 - 70], [W2 / 2 + 120, H2 - 70],
+  ] as [number, number][];
+  for (const [dx, dy] of dots) {
+    ctx.beginPath();
+    ctx.arc(dx, dy, 3, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(168, 85, 247, 0.45)";
+    ctx.fill();
+  }
+
+  // ── 13. Bottom separator ──────────────────────────────────────────────────
+  ctx.strokeStyle = "rgba(255,255,255,0.06)";
+  ctx.lineWidth   = 1;
+  ctx.beginPath();
+  ctx.moveTo(44, H2 - 66);
+  ctx.lineTo(W2 - 44, H2 - 66);
+  ctx.stroke();
+
+  // ── 14. Bottom labels ─────────────────────────────────────────────────────
+  ctx.save();
+  ctx.direction = "ltr";
+  ctx.textAlign = "left";
+  ctx.fillStyle = "rgba(255,255,255,0.18)";
+  ctx.font      = "18px Cairo";
+  ctx.fillText("🫥  برا السالفة", 52, H2 - 24);
+  ctx.restore();
+
+  ctx.save();
+  ctx.direction = "rtl";
+  ctx.textAlign = "right";
+  ctx.fillStyle = "rgba(255,255,255,0.18)";
+  ctx.font      = "18px Cairo";
+  ctx.fillText("MaxGame Bot 🎮", W2 - 52, H2 - 24);
+  ctx.restore();
+
+  return canvas.toBuffer("image/png") as unknown as Buffer;
+}
