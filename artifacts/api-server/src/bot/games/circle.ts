@@ -36,11 +36,12 @@ function validateAnswer(challenge: CircleChallenge, answer: string): boolean {
     }
     case "starts": {
       if (!isArabic(t) || !challenge.letter) return false;
-      return t[0] === challenge.letter || t[0] === challenge.letter;
+      return t[0] === challenge.letter;
     }
     case "no_letter": {
       if (!isArabic(t) || !challenge.letter) return false;
-      return !t.includes(challenge.letter);
+      // The word must not contain the forbidden letter at all
+      return !t.includes(challenge.letter!);
     }
     case "race": {
       return t.length >= 2 && isArabic(t);
@@ -52,85 +53,91 @@ function validateAnswer(challenge: CircleChallenge, answer: string): boolean {
 // ─── Challenge bank ───────────────────────────────────────────────────────────
 
 const MATH: CircleChallenge[] = [
-  { kind: "math", text: "📐 احسب: 7 × 8 = ؟",     expectedNum: 56,  timerSec: 12 },
-  { kind: "math", text: "📐 احسب: 6 × 9 = ؟",     expectedNum: 54,  timerSec: 12 },
-  { kind: "math", text: "📐 احسب: 15 + 27 = ؟",   expectedNum: 42,  timerSec: 12 },
-  { kind: "math", text: "📐 احسب: 100 - 38 = ؟",  expectedNum: 62,  timerSec: 12 },
-  { kind: "math", text: "📐 احسب: 48 ÷ 6 = ؟",   expectedNum: 8,   timerSec: 12 },
-  { kind: "math", text: "📐 احسب: 13 × 4 = ؟",   expectedNum: 52,  timerSec: 12 },
-  { kind: "math", text: "📐 احسب: 200 - 76 = ؟",  expectedNum: 124, timerSec: 15 },
-  { kind: "math", text: "📐 احسب: 9 × 9 = ؟",     expectedNum: 81,  timerSec: 10 },
-  { kind: "math", text: "📐 احسب: 144 ÷ 12 = ؟", expectedNum: 12,  timerSec: 12 },
-  { kind: "math", text: "📐 احسب: 17 × 6 = ؟",   expectedNum: 102, timerSec: 15 },
-  { kind: "math", text: "📐 احسب: 88 + 44 = ؟",  expectedNum: 132, timerSec: 15 },
-  { kind: "math", text: "📐 احسب: 250 ÷ 5 = ؟",  expectedNum: 50,  timerSec: 12 },
-  { kind: "math", text: "📐 احسب: 19 × 3 = ؟",   expectedNum: 57,  timerSec: 12 },
-  { kind: "math", text: "📐 احسب: 300 - 127 = ؟", expectedNum: 173, timerSec: 15 },
+  { kind: "math", text: "احسب: 7 × 8 = ؟",     expectedNum: 56,  timerSec: 12 },
+  { kind: "math", text: "احسب: 6 × 9 = ؟",     expectedNum: 54,  timerSec: 12 },
+  { kind: "math", text: "احسب: 15 + 27 = ؟",   expectedNum: 42,  timerSec: 12 },
+  { kind: "math", text: "احسب: 100 - 38 = ؟",  expectedNum: 62,  timerSec: 12 },
+  { kind: "math", text: "احسب: 48 ÷ 6 = ؟",   expectedNum: 8,   timerSec: 13 },
+  { kind: "math", text: "احسب: 13 × 4 = ؟",   expectedNum: 52,  timerSec: 12 },
+  { kind: "math", text: "احسب: 200 - 76 = ؟",  expectedNum: 124, timerSec: 14 },
+  { kind: "math", text: "احسب: 9 × 9 = ؟",     expectedNum: 81,  timerSec: 10 },
+  { kind: "math", text: "احسب: 144 ÷ 12 = ؟", expectedNum: 12,  timerSec: 12 },
+  { kind: "math", text: "احسب: 17 × 6 = ؟",   expectedNum: 102, timerSec: 14 },
+  { kind: "math", text: "احسب: 88 + 44 = ؟",  expectedNum: 132, timerSec: 13 },
+  { kind: "math", text: "احسب: 250 ÷ 5 = ؟",  expectedNum: 50,  timerSec: 12 },
+  { kind: "math", text: "احسب: 19 × 3 = ؟",   expectedNum: 57,  timerSec: 12 },
+  { kind: "math", text: "احسب: 300 - 127 = ؟", expectedNum: 173, timerSec: 14 },
+  { kind: "math", text: "احسب: 64 ÷ 8 = ؟",   expectedNum: 8,   timerSec: 11 },
+  { kind: "math", text: "احسب: 25 × 4 = ؟",   expectedNum: 100, timerSec: 12 },
 ];
 
 const STARTS: CircleChallenge[] = [
-  { kind: "starts", text: 'اكتب أسرع كلمة عربية تبدأ بحرف "م" ✍️',  letter: "م", timerSec: 10 },
-  { kind: "starts", text: 'اكتب أسرع كلمة عربية تبدأ بحرف "س" ✍️',  letter: "س", timerSec: 10 },
-  { kind: "starts", text: 'اكتب أسرع كلمة عربية تبدأ بحرف "ب" ✍️',  letter: "ب", timerSec: 10 },
-  { kind: "starts", text: 'اكتب أسرع كلمة عربية تبدأ بحرف "ح" ✍️',  letter: "ح", timerSec: 10 },
-  { kind: "starts", text: 'اكتب أسرع كلمة عربية تبدأ بحرف "ك" ✍️',  letter: "ك", timerSec: 10 },
-  { kind: "starts", text: 'اكتب أسرع كلمة عربية تبدأ بحرف "د" ✍️',  letter: "د", timerSec: 10 },
-  { kind: "starts", text: 'اكتب أسرع كلمة عربية تبدأ بحرف "ج" ✍️',  letter: "ج", timerSec: 10 },
-  { kind: "starts", text: 'اكتب أسرع كلمة عربية تبدأ بحرف "ف" ✍️',  letter: "ف", timerSec: 10 },
-  { kind: "starts", text: 'اكتب أسرع كلمة عربية تبدأ بحرف "ن" ✍️',  letter: "ن", timerSec: 10 },
-  { kind: "starts", text: 'اكتب أسرع كلمة عربية تبدأ بحرف "ل" ✍️',  letter: "ل", timerSec: 10 },
-  { kind: "starts", text: 'اكتب أسرع كلمة عربية تبدأ بحرف "ر" ✍️',  letter: "ر", timerSec: 10 },
-  { kind: "starts", text: 'اكتب أسرع كلمة عربية تبدأ بحرف "ز" ✍️',  letter: "ز", timerSec: 10 },
-  { kind: "starts", text: 'اكتب أسرع كلمة عربية تبدأ بحرف "خ" ✍️',  letter: "خ", timerSec: 10 },
-  { kind: "starts", text: 'اكتب أسرع كلمة عربية تبدأ بحرف "ع" ✍️',  letter: "ع", timerSec: 10 },
-  { kind: "starts", text: 'اكتب أسرع كلمة عربية تبدأ بحرف "ق" ✍️',  letter: "ق", timerSec: 10 },
-  { kind: "starts", text: 'اكتب أسرع كلمة عربية تبدأ بحرف "ش" ✍️',  letter: "ش", timerSec: 10 },
-  { kind: "starts", text: 'اكتب أسرع كلمة عربية تبدأ بحرف "ت" ✍️',  letter: "ت", timerSec: 10 },
-  { kind: "starts", text: 'اكتب أسرع كلمة عربية تبدأ بحرف "ه" ✍️',  letter: "ه", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "م"',  letter: "م", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "س"',  letter: "س", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ب"',  letter: "ب", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ح"',  letter: "ح", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ك"',  letter: "ك", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "د"',  letter: "د", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ج"',  letter: "ج", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ف"',  letter: "ف", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ن"',  letter: "ن", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ل"',  letter: "ل", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ر"',  letter: "ر", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ز"',  letter: "ز", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "خ"',  letter: "خ", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ع"',  letter: "ع", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ق"',  letter: "ق", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ش"',  letter: "ش", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ت"',  letter: "ت", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ه"',  letter: "ه", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "و"',  letter: "و", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "أ"',  letter: "أ", timerSec: 10 },
 ];
 
 const NO_LETTER: CircleChallenge[] = [
-  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "ا" ⚠️',  letter: "ا", timerSec: 13 },
-  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "ل" ⚠️',  letter: "ل", timerSec: 13 },
-  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "م" ⚠️',  letter: "م", timerSec: 13 },
-  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "ن" ⚠️',  letter: "ن", timerSec: 13 },
-  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "ي" ⚠️',  letter: "ي", timerSec: 13 },
-  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "و" ⚠️',  letter: "و", timerSec: 13 },
-  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "ب" ⚠️',  letter: "ب", timerSec: 13 },
-  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "ر" ⚠️',  letter: "ر", timerSec: 13 },
-  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "ع" ⚠️',  letter: "ع", timerSec: 13 },
+  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "ا"',  letter: "ا", timerSec: 14 },
+  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "ل"',  letter: "ل", timerSec: 14 },
+  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "م"',  letter: "م", timerSec: 14 },
+  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "ن"',  letter: "ن", timerSec: 14 },
+  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "ي"',  letter: "ي", timerSec: 14 },
+  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "و"',  letter: "و", timerSec: 14 },
+  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "ب"',  letter: "ب", timerSec: 14 },
+  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "ر"',  letter: "ر", timerSec: 14 },
+  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "ع"',  letter: "ع", timerSec: 14 },
+  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "ه"',  letter: "ه", timerSec: 14 },
 ];
 
 const RACE: CircleChallenge[] = [
-  { kind: "race", text: "⚡ سباق! اكتب أي كلمة عربية أسرع ما تقدر!",     timerSec: 8 },
-  { kind: "race", text: "⚡ اكتب اسم أي دولة عربية أسرع ما تقدر!",       timerSec: 8 },
-  { kind: "race", text: "⚡ اكتب اسم أي حيوان الآن!",                      timerSec: 8 },
-  { kind: "race", text: "⚡ اكتب اسم أي لون أسرع ما تقدر!",               timerSec: 8 },
-  { kind: "race", text: "⚡ اكتب اسم أي فاكهة الآن!",                      timerSec: 8 },
-  { kind: "race", text: "⚡ اكتب اسم أي مدينة سعودية أسرع ما تقدر!",     timerSec: 8 },
-  { kind: "race", text: "⚡ اكتب اسم أكلة شعبية الآن!",                    timerSec: 8 },
-  { kind: "race", text: "⚡ اكتب اسم أي نهر في العالم الآن!",              timerSec: 8 },
+  { kind: "race", text: "اكتب أي كلمة عربية أسرع ما تقدر!",      timerSec: 9 },
+  { kind: "race", text: "اكتب اسم أي دولة عربية أسرع ما تقدر!", timerSec: 9 },
+  { kind: "race", text: "اكتب اسم أي حيوان الآن!",               timerSec: 9 },
+  { kind: "race", text: "اكتب اسم أي لون!",                       timerSec: 8 },
+  { kind: "race", text: "اكتب اسم أي فاكهة الآن!",               timerSec: 8 },
+  { kind: "race", text: "اكتب اسم مدينة سعودية!",                 timerSec: 9 },
+  { kind: "race", text: "اكتب اسم أي أكلة شعبية!",               timerSec: 9 },
+  { kind: "race", text: "اكتب اسم أي نهر في العالم!",            timerSec: 9 },
+  { kind: "race", text: "اكتب مهنة عشوائية الآن!",                timerSec: 8 },
+  { kind: "race", text: "اكتب اسم أي دولة من آسيا!",            timerSec: 9 },
 ];
 
 function pickChallenge(round: number, used: Set<string>): CircleChallenge {
   let pool: CircleChallenge[];
-  if (round <= 3)      pool = [...RACE, ...STARTS.slice(0, 8)];
-  else if (round <= 6) pool = [...MATH.slice(0, 8), ...STARTS, ...NO_LETTER.slice(0, 4)];
-  else                 pool = [...MATH, ...NO_LETTER, ...STARTS];
+  if (round <= 2)       pool = [...RACE];
+  else if (round <= 4)  pool = [...RACE, ...STARTS.slice(0, 10)];
+  else if (round <= 7)  pool = [...MATH.slice(0, 8), ...STARTS, ...NO_LETTER.slice(0, 4)];
+  else                  pool = [...MATH, ...NO_LETTER, ...STARTS];
 
-  const fresh = pool.filter(c => !used.has(c.text));
+  const fresh   = pool.filter(c => !used.has(c.text));
   const choices = fresh.length > 0 ? fresh : pool;
-  const pick = choices[Math.floor(Math.random() * choices.length)];
+  const pick    = choices[Math.floor(Math.random() * choices.length)];
   used.add(pick.text);
   return pick;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const JOIN_MS      = 60_000;
-const JOIN_WARN_MS = 40_000;
-const MIN_PLAYERS  = 3;
-const BETWEEN_ROUNDS_MS = 3_500;
+const MIN_PLAYERS       = 3;
+const BETWEEN_ROUNDS_MS = 3_000;
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
@@ -160,15 +167,19 @@ export async function startCircle(
     doubleElim: false,
   };
 
-  s.players.set(hostId, { id: hostId, username: hostUsername, firstName: hostFirst, lastName: hostLast });
+  s.players.set(hostId, {
+    id: hostId, username: hostUsername,
+    firstName: hostFirst, lastName: hostLast,
+  });
   gameStates.set(chatId, s);
 
   const msg = await bot.telegram.sendMessage(
     chatId,
     `🔴 <b>الدائرة القاتلة</b>\n\n` +
-    `كل جولة تحدي — الأبطأ أو الغلطان يطلع! 🎯\n\n` +
+    `كل جولة تحدي — الأبطأ أو الغلطان يطلع!\n\n` +
     `👥 <b>اللاعبون (${s.players.size}):</b>\n${playerList(s)}\n\n` +
-    `اضغط <b>➕ انضم</b> للمشاركة!\n<i>اضغط ▶️ ابدأ الآن عندما يكون الكل جاهز</i>`,
+    `اضغط <b>➕ انضم</b> للمشاركة\n` +
+    `<i>اضغط ▶️ ابدأ الآن عندما يكون الكل جاهز</i>`,
     {
       parse_mode: "HTML",
       ...Markup.inlineKeyboard([
@@ -183,42 +194,40 @@ export async function startCircle(
 
 export async function handleCircleJoin(bot: Telegraf, ctx: Context, chatId: number): Promise<void> {
   const from = ctx.from!;
-  const s = gameStates.get(chatId);
+  const s    = gameStates.get(chatId);
 
   if (!s || s.type !== "circle" || s.phase !== "joining") {
-    await ctx.answerCbQuery("❌ التسجيل مو متاح الحين").catch(() => {});
-    return;
+    await ctx.answerCbQuery("❌ التسجيل مو متاح الحين").catch(() => {}); return;
   }
   if (s.players.has(from.id)) {
-    await ctx.answerCbQuery("✅ أنت مسجل مسبقاً!").catch(() => {});
-    return;
+    await ctx.answerCbQuery("✅ أنت مسجل مسبقاً!").catch(() => {}); return;
   }
 
   const p: CirclePlayer = {
     id: from.id,
-    username: from.username,
+    username:  from.username,
     firstName: from.first_name ?? "",
-    lastName: from.last_name ?? "",
+    lastName:  from.last_name  ?? "",
   };
   s.players.set(from.id, p);
 
-  await ctx.answerCbQuery(`✅ دخلت الدائرة!`).catch(() => {});
+  await ctx.answerCbQuery("✅ دخلت الدائرة!").catch(() => {});
   bot.telegram.sendMessage(
     chatId,
-    `✅ <b>${esc(dnC(p))}</b> دخل الدائرة! 🔴\n👥 اللاعبون (${s.players.size}):\n${playerList(s)}`,
+    `✅ <b>${esc(dnC(p))}</b> دخل الدائرة!\n👥 اللاعبون (${s.players.size}):\n${playerList(s)}`,
     { parse_mode: "HTML" }
   ).catch(() => {});
 }
 
 export async function handleCircleForceStart(bot: Telegraf, ctx: Context, chatId: number): Promise<void> {
   const from = ctx.from!;
-  const s = gameStates.get(chatId);
+  const s    = gameStates.get(chatId);
 
   if (!s || s.type !== "circle" || s.phase !== "joining") {
     await ctx.answerCbQuery("❌ ما في تسجيل").catch(() => {}); return;
   }
   if (from.id !== s.hostId) {
-    await ctx.answerCbQuery("⛔ فقط من بدأ اللعبة يقدر يبدأها!").catch(() => {}); return;
+    await ctx.answerCbQuery("⛔ فقط من أنشأ اللعبة يقدر يبدأها!").catch(() => {}); return;
   }
   if (s.players.size < MIN_PLAYERS) {
     await ctx.answerCbQuery(`⚠️ ما يكفي لاعبين! (${s.players.size}/${MIN_PLAYERS})`).catch(() => {}); return;
@@ -238,7 +247,7 @@ export function handleCircleText(
   const s = gameStates.get(chatId);
   if (!s || s.type !== "circle" || s.phase !== "playing" || !s.challenge) return;
   if (!s.players.has(uid)) return;
-  if (s.responses.has(uid)) return; // one answer per round
+  if (s.responses.has(uid)) return; // one answer per round per player
   s.responses.set(uid, { text: text.trim(), timestamp });
 }
 
@@ -254,8 +263,7 @@ async function launchCircle(bot: Telegraf, chatId: number): Promise<void> {
       `❌ ما كفت لاعبين (${s.players.size}/${MIN_PLAYERS}) — اللعبة انتهت.`,
       { parse_mode: "HTML" }
     ).catch(() => {});
-    clearGame(chatId);
-    return;
+    clearGame(chatId); return;
   }
 
   if (s.joinTimer)     clearTimeout(s.joinTimer);
@@ -267,9 +275,9 @@ async function launchCircle(bot: Telegraf, chatId: number): Promise<void> {
     chatId,
     `🔴 <b>الدائرة القاتلة — انطلقت!</b>\n\n` +
     `👥 <b>اللاعبون (${s.players.size}):</b>\n${playerList(s)}\n\n` +
-    `🎯 كل جولة تحدي — الأبطأ أو الغلطان يطلع!\n` +
-    `آخر واحد يبقى = الفائز 👑\n\n` +
-    `<i>الجولة الأولى خلال 3 ثواني...</i>`,
+    `اكتبوا إجاباتكم في القروب عند ظهور كل تحدي\n` +
+    `آخر واحد يبقى = الفائز\n\n` +
+    `<i>الجولة الأولى خلال ثوانٍ...</i>`,
     { parse_mode: "HTML" }
   ).catch(() => {});
 
@@ -283,7 +291,8 @@ async function sendChallenge(bot: Telegraf, chatId: number): Promise<void> {
   s.round++;
   s.responses = new Map();
 
-  const doubleElim = s.round % 3 === 0 && s.players.size > 3;
+  // Double elimination only when > 4 players remain (to avoid ending the game too fast)
+  const doubleElim = s.round % 3 === 0 && s.players.size > 4;
   s.doubleElim = doubleElim;
 
   const challenge = pickChallenge(s.round, s.usedChallenges);
@@ -292,18 +301,26 @@ async function sendChallenge(bot: Telegraf, chatId: number): Promise<void> {
   const remaining = [...s.players.values()].map(p => `• ${esc(dnC(p))}`).join("\n");
 
   let header = `🔴 <b>الجولة ${s.round}</b>`;
-  if (doubleElim)   header += `  ╴ 💀 إقصاء مزدوج!`;
-  if (s.round >= 7) header += `  🔥 حرارة!`;
+  if (doubleElim) header += `  ⚡ إقصاء مزدوج!`;
+  if (s.round >= 7) header += `  🔥`;
+
+  // Challenge type hint
+  let hint = "";
+  if (challenge.kind === "math")      hint = "📐 <b>حساب</b> — اكتب الرقم فقط";
+  if (challenge.kind === "starts")    hint = "✍️ <b>كلمة</b> — أسرع إجابة صحيحة تنجو";
+  if (challenge.kind === "no_letter") hint = "⚠️ <b>تحدي الحرف المحظور</b> — خطأ واحد يكفي";
+  if (challenge.kind === "race")      hint = "⚡ <b>سباق سرعة</b> — أول واحد يفوز، آخر واحد يطلع";
 
   const msg = await bot.telegram.sendMessage(
     chatId,
     `${header}\n\n` +
     `👥 <b>المتبقون (${s.players.size}):</b>\n${remaining}\n\n` +
-    `━━━━━━━━━━━━━━━━━━\n` +
-    `🎯 <b>التحدي:</b>\n<b>${challenge.text}</b>\n` +
-    `━━━━━━━━━━━━━━━━━━\n\n` +
-    `⏱ عندكم <b>${challenge.timerSec} ثانية</b> — اكتبوا الآن! 📨` +
-    (doubleElim ? `\n⚠️ <b>شخصان سيطلعان هذه الجولة!</b>` : ""),
+    `▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n` +
+    `🎯 ${hint}\n\n` +
+    `<b>${challenge.text}</b>\n` +
+    `▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n\n` +
+    `⏱ <b>${challenge.timerSec} ثانية</b>` +
+    (doubleElim ? `  •  شخصان سيطلعان!` : ""),
     { parse_mode: "HTML" }
   ).catch(() => null);
 
@@ -319,20 +336,21 @@ async function resolveChallenge(bot: Telegraf, chatId: number): Promise<void> {
   const s = gameStates.get(chatId);
   if (!s || s.type !== "circle" || s.phase !== "playing" || !s.challenge) return;
 
+  // Guard: only run once
   if (s.challengeTimer) { clearTimeout(s.challengeTimer); s.challengeTimer = undefined; }
 
   const challenge = s.challenge;
-  s.challenge = null;
+  s.challenge     = null;
 
-  const allUids = [...s.players.keys()];
-  const correct:     { uid: number; ts: number }[] = [];
-  const wrong:       number[] = [];
-  const noResponse:  number[] = [];
+  const allUids  = [...s.players.keys()];
+  const correct: { uid: number; ts: number }[] = [];
+  const wrong:      number[] = [];
+  const noResp:     number[] = [];
 
   for (const uid of allUids) {
     const r = s.responses.get(uid);
     if (!r) {
-      noResponse.push(uid);
+      noResp.push(uid);
     } else if (validateAnswer(challenge, r.text)) {
       correct.push({ uid, ts: r.ts });
     } else {
@@ -342,40 +360,47 @@ async function resolveChallenge(bot: Telegraf, chatId: number): Promise<void> {
 
   correct.sort((a, b) => a.ts - b.ts);
 
-  // Determine elimination candidates
+  // Elimination logic per challenge type
   let elimCandidates: number[];
+
   if (challenge.kind === "race") {
-    // no / wrong answers eliminated; if all valid, slowest eliminated
-    elimCandidates = [...noResponse, ...wrong];
-    if (elimCandidates.length === 0 && correct.length > 0) {
+    // Slowest valid response, OR no/wrong response
+    elimCandidates = [...noResp, ...wrong];
+    if (elimCandidates.length === 0 && correct.length > 1) {
+      // Everyone answered: eliminate slowest
       elimCandidates = [correct[correct.length - 1].uid];
     }
   } else {
-    // math / starts / no_letter: wrong or no answer → out; else slowest
-    elimCandidates = [...wrong, ...noResponse];
-    if (elimCandidates.length === 0 && correct.length > 0) {
+    // math / starts / no_letter: wrong answer = eliminated; if all correct → slowest out
+    elimCandidates = [...wrong, ...noResp];
+    if (elimCandidates.length === 0 && correct.length > 1) {
       elimCandidates = [correct[correct.length - 1].uid];
     }
   }
 
-  // Build result message
+  // Build results text
   let result = `📊 <b>نتيجة الجولة ${s.round}:</b>\n\n`;
   if (correct.length > 0) {
-    result += `✅ <b>صح:</b> ${correct.map(({ uid }) => esc(dnC(s.players.get(uid)!))).join("، ")}\n`;
+    result += `✅ صح: ${correct.slice(0, 8).map(({ uid }) => {
+      const p = s.players.get(uid); return p ? esc(dnC(p)) : "؟";
+    }).join("، ")}\n`;
   }
   if (wrong.length > 0) {
-    result += `❌ <b>غلط:</b> ${wrong.map(uid => esc(dnC(s.players.get(uid)!))).join("، ")}\n`;
+    result += `❌ خطأ: ${wrong.slice(0, 8).map(uid => {
+      const p = s.players.get(uid); return p ? esc(dnC(p)) : "؟";
+    }).join("، ")}\n`;
   }
-  if (noResponse.length > 0) {
-    result += `💤 <b>ما ردوا:</b> ${noResponse.map(uid => esc(dnC(s.players.get(uid)!))).join("، ")}\n`;
+  if (noResp.length > 0) {
+    result += `💤 لم يردوا: ${noResp.slice(0, 8).map(uid => {
+      const p = s.players.get(uid); return p ? esc(dnC(p)) : "؟";
+    }).join("، ")}\n`;
   }
-
-  if (challenge.kind === "math") {
-    result += `\n💡 الجواب الصحيح: <b>${challenge.expectedNum}</b>`;
+  if (challenge.kind === "math" && challenge.expectedNum !== undefined) {
+    result += `\n💡 الجواب: <b>${challenge.expectedNum}</b>`;
   }
 
   if (elimCandidates.length === 0) {
-    result += `\n\n✨ كلكم أجبتم صح وبسرعة — لا إقصاء هذه الجولة!`;
+    result += `\n\n✨ الكل أجاب صح وبسرعة — لا إقصاء هذه الجولة!`;
     await bot.telegram.sendMessage(chatId, result, { parse_mode: "HTML" }).catch(() => {});
     setTimeout(() => sendChallenge(bot, chatId), BETWEEN_ROUNDS_MS);
     return;
@@ -383,10 +408,12 @@ async function resolveChallenge(bot: Telegraf, chatId: number): Promise<void> {
 
   await bot.telegram.sendMessage(chatId, result, { parse_mode: "HTML" }).catch(() => {});
 
-  // Shuffle then pick
   shuffle(elimCandidates);
-  const elimCount = s.doubleElim && elimCandidates.length >= 2 ? 2 : 1;
-  await eliminatePlayers(bot, chatId, elimCandidates.slice(0, elimCount));
+  // Cap elimination: never eliminate more than players-1 (keep at least 1)
+  const maxElim   = Math.min(s.players.size - 1, s.doubleElim && elimCandidates.length >= 2 ? 2 : 1);
+  const toElim    = elimCandidates.slice(0, maxElim);
+
+  await eliminatePlayers(bot, chatId, toElim);
 }
 
 async function eliminatePlayers(bot: Telegraf, chatId: number, uids: number[]): Promise<void> {
@@ -402,32 +429,26 @@ async function eliminatePlayers(bot: Telegraf, chatId: number, uids: number[]): 
     try {
       const buf = await generateCircleEliminatedCard(dnC(p), s.round);
       await bot.telegram.sendPhoto(chatId, { source: buf }, {
-        caption: `💀 <b>${esc(dnC(p))}</b> خرج من الدائرة في الجولة ${s.round}! 🔴`,
+        caption:    `🔴 <b>${esc(dnC(p))}</b> خرج من الدائرة في الجولة ${s.round}!`,
         parse_mode: "HTML",
       });
     } catch (e) {
       logger.warn({ err: e }, "circle eliminated card failed");
       await bot.telegram.sendMessage(
         chatId,
-        `💀 <b>${esc(dnC(p))}</b> خرج من الدائرة! 🔴`,
+        `🔴 <b>${esc(dnC(p))}</b> خرج من الدائرة!`,
         { parse_mode: "HTML" }
       ).catch(() => {});
     }
   }
 
-  // Check win condition
+  // Win check
   if (s.players.size === 1) {
-    const winner = [...s.players.values()][0];
-    await endCircle(bot, chatId, winner);
-    return;
+    await endCircle(bot, chatId, [...s.players.values()][0]); return;
   }
-
   if (s.players.size === 0) {
-    await bot.telegram.sendMessage(
-      chatId, `🔴 <b>الكل طلع!</b> ما في فائز 😅`, { parse_mode: "HTML" }
-    ).catch(() => {});
-    clearGame(chatId);
-    return;
+    await bot.telegram.sendMessage(chatId, `🔴 الكل طلع — ما في فائز!`, { parse_mode: "HTML" }).catch(() => {});
+    clearGame(chatId); return;
   }
 
   setTimeout(() => sendChallenge(bot, chatId), BETWEEN_ROUNDS_MS);
@@ -439,7 +460,6 @@ async function endCircle(bot: Telegraf, chatId: number, winner: CirclePlayer): P
 
   s.phase = "done";
 
-  // Record stats
   const all = [...s.players.values(), ...s.eliminated];
   for (const p of all) {
     if (p.id === winner.id) recordWin(chatId, toP(p));
@@ -449,14 +469,14 @@ async function endCircle(bot: Telegraf, chatId: number, winner: CirclePlayer): P
   try {
     const buf = await generateCircleWinnerCard(dnC(winner));
     await bot.telegram.sendPhoto(chatId, { source: buf }, {
-      caption: `👑 <b>${esc(dnC(winner))}</b> هو الناجي الوحيد من الدائرة القاتلة!\n🎊 مبروك!`,
+      caption:    `👑 <b>${esc(dnC(winner))}</b> هو الناجي الوحيد من الدائرة القاتلة!\nمبروك!`,
       parse_mode: "HTML",
     });
   } catch (e) {
     logger.warn({ err: e }, "circle winner card failed");
     await bot.telegram.sendMessage(
       chatId,
-      `🏆 <b>الفائز:</b> ${esc(dnC(winner))} 👑\nناجي من الدائرة القاتلة! 🎊`,
+      `🏆 <b>الفائز:</b> ${esc(dnC(winner))}\nناجي من الدائرة القاتلة! مبروك!`,
       { parse_mode: "HTML" }
     ).catch(() => {});
   }
