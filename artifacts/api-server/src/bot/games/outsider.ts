@@ -6,10 +6,14 @@ import {
 import { generateOutsiderCard, generateInsiderCard, generateRevealCard } from "../outsiderCard.js";
 import { logger } from "../../lib/logger.js";
 
+// Show full name (firstName + lastName) first, fall back to @username, then ID
 function dnO(p: OutsiderPlayer): string {
-  const full = [p.firstName, p.lastName].filter(Boolean).join(" ") || String(p.id);
-  return p.username ? `@${p.username}` : full;
+  const full = [p.firstName, p.lastName].filter(Boolean).join(" ");
+  return full || (p.username ? `@${p.username}` : String(p.id));
 }
+
+// ─── Saved categories (persisted across games per chat) ───────────────────────
+const savedCategories = new Map<number, Set<string>>();
 
 function toPlayer(p: OutsiderPlayer): Player {
   return { id: p.id, username: p.username, name: dnO(p) };
@@ -266,6 +270,10 @@ export async function startOutsider(bot: Telegraf, ctx: Context) {
   const fname = (ctx.from as any).first_name ?? "";
   const lname = (ctx.from as any).last_name ?? "";
 
+  // Load previously saved categories or default to all
+  const prevCats = savedCategories.get(chatId);
+  const initialCats = prevCats ? new Set(prevCats) : new Set(CATEGORY_KEYS);
+
   const s: OutsiderState = {
     type: "outsider",
     phase: "selecting",
@@ -275,15 +283,17 @@ export async function startOutsider(bot: Telegraf, ctx: Context) {
     category: null,
     votes: new Map(),
     hostId: uid,
-    selectedCategories: new Set(CATEGORY_KEYS),
+    selectedCategories: initialCats,
     joinMsgId: null,
   };
   gameStates.set(chatId, s);
 
+  const count = [...initialCats].reduce((a, k) => a + (ALL_TOPICS[k]?.length ?? 0), 0);
   const msg = await ctx.reply(
     `🫥 <b>برا السالفة</b> — اختر الفئات\n\n` +
-    `اختر الفئات اللي تبغى تلعبها، ثم اضغط <b>بدء الانضمام</b>!\n\n` +
-    `✅ = مفعّلة  |  ☑️ = معطّلة`,
+    `الفئات المختارة: <b>${initialCats.size}</b> | المواضيع: <b>${count}</b>\n\n` +
+    `✅ مفعّلة  |  ☑️ معطّلة\n` +
+    `<i>اختياراتك السابقة محفوظة تلقائياً</i>`,
     { parse_mode: "HTML", ...catSelectionKb(chatId, s.selectedCategories) }
   );
 
@@ -319,10 +329,13 @@ export async function handleOutsiderCatToggle(
     (a, k) => a + (ALL_TOPICS[k]?.length ?? 0), 0
   );
 
+  // Persist selection
+  savedCategories.set(chatId, new Set(s.selectedCategories));
+
   await ctx.editMessageText(
     `🫥 <b>برا السالفة</b> — اختر الفئات\n\n` +
-    `الفئات المختارة: <b>${s.selectedCategories.size}</b> | المواضيع المتاحة: <b>${count}</b>\n\n` +
-    `✅ = مفعّلة  |  ☑️ = معطّلة`,
+    `الفئات المختارة: <b>${s.selectedCategories.size}</b> | المواضيع: <b>${count}</b>\n\n` +
+    `✅ مفعّلة  |  ☑️ معطّلة`,
     { parse_mode: "HTML", ...catSelectionKb(chatId, s.selectedCategories) }
   ).catch(() => {});
 
@@ -345,10 +358,12 @@ export async function handleOutsiderCatAll(
   CATEGORY_KEYS.forEach((k) => s.selectedCategories.add(k));
   const count = [...s.selectedCategories.values()].reduce((a, k) => a + (ALL_TOPICS[k]?.length ?? 0), 0);
 
+  savedCategories.set(chatId, new Set(s.selectedCategories));
+
   await ctx.editMessageText(
     `🫥 <b>برا السالفة</b> — اختر الفئات\n\n` +
-    `الفئات المختارة: <b>${s.selectedCategories.size}</b> | المواضيع المتاحة: <b>${count}</b>\n\n` +
-    `✅ = مفعّلة  |  ☑️ = معطّلة`,
+    `الفئات المختارة: <b>${s.selectedCategories.size}</b> | المواضيع: <b>${count}</b>\n\n` +
+    `✅ مفعّلة  |  ☑️ معطّلة`,
     { parse_mode: "HTML", ...catSelectionKb(chatId, s.selectedCategories) }
   ).catch(() => {});
 
@@ -374,40 +389,45 @@ export async function handleOutsiderCatDone(
 
   s.phase = "joining";
 
+  // Persist categories on game start
+  savedCategories.set(chatId, new Set(s.selectedCategories));
+
   // Add host as first player
-  s.players.set(uid, { id: uid, username: uname, firstName: fname, lastName: lname });
+  const hostPlayer: OutsiderPlayer = { id: uid, username: uname, firstName: fname, lastName: lname };
+  s.players.set(uid, hostPlayer);
   privateUserToGame.set(uid, chatId);
 
-  const catList = [...s.selectedCategories].join("  ");
-  const joinMsg = await ctx.editMessageText(
-    `🫥 <b>برا السالفة</b>\n\n` +
-    `الفئات: ${catList}\n\n` +
-    `اضغط <b>انضم</b> للمشاركة!\n\n` +
-    `👤 اللاعبون:\n• ${esc(dnO({ username: uname, firstName: fname, lastName: lname } as any))}\n\n` +
-    `<i>تنتهي الدعوة بعد 60 ثانية</i>`,
+  // Delete the category selection message and send a fresh join message
+  ctx.answerCbQuery().catch(() => {});
+
+  const joinMsg = await bot.telegram.sendMessage(chatId,
+    `🫥 <b>برا السالفة</b> — باب الانضمام مفتوح!\n\n` +
+    `👤 اللاعبون (${s.players.size}):\n${playerList(s)}\n\n` +
+    `اضغط <b>➕ انضم</b> للمشاركة!\n` +
+    `عندك <b>60 ثانية</b> قبل ما تبدأ اللعبة تلقائياً.`,
     {
       parse_mode: "HTML",
       ...Markup.inlineKeyboard([
-        [Markup.button.callback("➕ انضم", `out:join:${chatId}`)],
-        [Markup.button.callback("▶️ ابدأ الآن", `out:fstart:${chatId}`)],
+        [Markup.button.callback("➕  انضم للعبة", `out:join:${chatId}`)],
+        [Markup.button.callback("▶️  ابدأ الآن", `out:fstart:${chatId}`)],
       ]),
     }
   ).catch(() => null);
 
-  ctx.answerCbQuery().catch(() => {});
+  if (joinMsg) s.joinMsgId = joinMsg.message_id;
 
   // Warn at 40s
-  setTimeout(async () => {
+  s.joinWarnTimer = setTimeout(async () => {
     const gs = gameStates.get(chatId);
     if (!gs || gs.type !== "outsider" || gs.phase !== "joining") return;
     bot.telegram.sendMessage(chatId,
-      `⏳ <b>تبقت 20 ثانية!</b> (${gs.players.size} لاعب)`,
+      `⏳ <b>تبقى 20 ثانية!</b> — انضم الآن قبل فوات الأوان (${gs.players.size} لاعب) 👋`,
       { parse_mode: "HTML" }
     ).catch(() => {});
   }, JOIN_WARN_MS);
 
   // Auto-start
-  setTimeout(() => launchGame(bot, chatId), JOIN_MS);
+  s.joinTimer = setTimeout(() => launchGame(bot, chatId), JOIN_MS);
 }
 
 // ─── Join ──────────────────────────────────────────────────────────────────────
@@ -424,29 +444,20 @@ export async function handleOutsiderJoin(
     ctx.answerCbQuery("❌ التسجيل مو متاح الحين").catch(() => {}); return;
   }
   if (s.players.has(uid)) {
-    ctx.answerCbQuery("أنت مسجل مسبقاً!").catch(() => {}); return;
+    ctx.answerCbQuery("✅ أنت مسجل مسبقاً!").catch(() => {}); return;
   }
 
   s.players.set(uid, { id: uid, username: uname, firstName: fname, lastName: lname });
   privateUserToGame.set(uid, chatId);
 
-  const catList = [...s.selectedCategories].join("  ");
-  await ctx.editMessageText(
-    `🫥 <b>برا السالفة</b>\n\n` +
-    `الفئات: ${catList}\n\n` +
-    `اضغط <b>انضم</b> للمشاركة!\n\n` +
-    `👤 اللاعبون:\n${playerList(s)}\n\n` +
-    `<i>تنتهي الدعوة بعد 60 ثانية</i>`,
-    {
-      parse_mode: "HTML",
-      ...Markup.inlineKeyboard([
-        [Markup.button.callback("➕ انضم", `out:join:${chatId}`)],
-        [Markup.button.callback("▶️ ابدأ الآن", `out:fstart:${chatId}`)],
-      ]),
-    }
-  ).catch(() => {});
+  const name = dnO({ id: uid, username: uname, firstName: fname, lastName: lname });
+  ctx.answerCbQuery(`✅ ${name} انضم!`).catch(() => {});
 
-  ctx.answerCbQuery("✅ تم التسجيل!").catch(() => {});
+  // Send a brief status update (don't edit the shared join message to avoid conflicts)
+  await bot.telegram.sendMessage(chatId,
+    `✅ <b>${esc(name)}</b> انضم للعبة!\n👥 اللاعبون الآن (${s.players.size}):\n${playerList(s)}`,
+    { parse_mode: "HTML" }
+  ).catch(() => {});
 }
 
 // ─── Force start ───────────────────────────────────────────────────────────────
@@ -493,31 +504,59 @@ async function launchGame(bot: Telegraf, chatId: number) {
   s.topic    = topic;
   s.category = category;
 
-  // Group announcement
+  // Group announcement with skip-to-vote button for host
+  const playerNames = [...s.players.values()].map((p) => `• ${esc(dnO(p))}`).join("\n");
   await bot.telegram.sendMessage(chatId,
-    `🫥 <b>برا السالفة — بدأت اللعبة!</b>\n\n` +
-    `👤 اللاعبون: ${[...s.players.values()].map((p) => esc(dnO(p))).join(" | ")}\n\n` +
-    `📨 <b>راجع خاصك!</b> — أرسلنا لك دورك الآن.\n\n` +
-    `🗣 عند كل لاعب <b>دقيقتان</b> للتلميح في القروب.\n` +
-    `لا تقول الكلمة مباشرة! 🎯\n\n` +
-    `<i>التصويت يبدأ تلقائياً بعد دقيقتين...</i>`,
-    { parse_mode: "HTML" }
+    `🫥 <b>برا السالفة — اللعبة بدأت!</b>\n\n` +
+    `👥 اللاعبون (${s.players.size}):\n${playerNames}\n\n` +
+    `📨 <b>شوف خاصك</b> — وصلك دورك هناك!\n\n` +
+    `🗣 <b>كل لاعب يلمّح</b> عن الكلمة في القروب دون أن يذكرها مباشرة.\n` +
+    `التصويت يبدأ تلقائياً بعد <b>دقيقتين</b> ⏳\n\n` +
+    `<i>من بدأ اللعبة يقدر يبدأ التصويت مبكراً من الزر أدناه</i>`,
+    {
+      parse_mode: "HTML",
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback("⏭️ ابدأ التصويت الآن (للمضيف فقط)", `out:skipvote:${chatId}`)],
+      ]),
+    }
   ).catch(() => {});
 
   // Send role cards
   await sendRoleCards(bot, s, chatId);
 
-  // Hinting timer → vote
-  setTimeout(() => {
+  // Hinting warn timer
+  s.hintWarnTimer = setTimeout(() => {
     const gs = gameStates.get(chatId);
     if (!gs || gs.type !== "outsider" || gs.phase !== "hinting") return;
     bot.telegram.sendMessage(chatId,
-      `⏳ <b>تبقت 40 ثانية</b> على التصويت!`,
+      `⏳ <b>تبقى 40 ثانية</b> على التصويت — لمّحوا الآن! 🎯`,
       { parse_mode: "HTML" }
     ).catch(() => {});
   }, HINT_WARN_MS);
 
-  setTimeout(() => startVoting(bot, chatId), HINT_MS);
+  // Hinting end timer
+  s.hintTimer = setTimeout(() => startVoting(bot, chatId), HINT_MS);
+}
+
+// ─── Skip to voting (host-only shortcut) ───────────────────────────────────────
+export async function handleOutsiderSkipVote(
+  bot: Telegraf, ctx: Context, chatId: number
+) {
+  const uid = (ctx.from as any).id;
+  const s = gameStates.get(chatId);
+  if (!s || s.type !== "outsider" || s.phase !== "hinting") {
+    ctx.answerCbQuery("⚠️ التصويت مش متاح الآن").catch(() => {}); return;
+  }
+  if (uid !== s.hostId) {
+    ctx.answerCbQuery("فقط من بدأ اللعبة يقدر يضغط هذا! 🙅").catch(() => {}); return;
+  }
+  ctx.answerCbQuery("⏭️ ينتقل للتصويت الآن!").catch(() => {});
+  // Cancel hint timers
+  if (s.hintTimer) clearTimeout(s.hintTimer);
+  if (s.hintWarnTimer) clearTimeout(s.hintWarnTimer);
+  // Edit the message to remove the skip button
+  ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
+  await startVoting(bot, chatId);
 }
 
 // ─── Voting ────────────────────────────────────────────────────────────────────
@@ -527,18 +566,24 @@ async function startVoting(bot: Telegraf, chatId: number) {
 
   s.phase = "voting";
 
-  await bot.telegram.sendMessage(chatId,
-    `🗳 <b>التصويت!</b>\n\nمن تظن إنه برا السالفة؟\n<i>لكل شخص صوت واحد</i>`,
+  const voteMsg = await bot.telegram.sendMessage(chatId,
+    `🗳 <b>وقت التصويت!</b>\n\nمن تظن إنه <b>برا السالفة</b>؟\n\n` +
+    `<i>لكل لاعب صوت واحد — صوّت الآن! (${s.votes.size}/${s.players.size})</i>`,
     { parse_mode: "HTML", ...voteKb(chatId, s) }
-  ).catch(() => {});
+  ).catch(() => null);
 
-  setTimeout(() => {
+  if (voteMsg) s.voteMsgId = voteMsg.message_id;
+
+  s.voteWarnTimer = setTimeout(() => {
     const gs = gameStates.get(chatId);
     if (!gs || gs.type !== "outsider" || gs.phase !== "voting") return;
-    bot.telegram.sendMessage(chatId, `⏳ <b>تبقى 30 ثانية!</b>`, { parse_mode: "HTML" }).catch(() => {});
+    bot.telegram.sendMessage(chatId,
+      `⏳ <b>تبقى 30 ثانية</b> للتصويت! صوّتوا الآن 🗳`,
+      { parse_mode: "HTML" }
+    ).catch(() => {});
   }, VOTE_WARN_MS);
 
-  setTimeout(() => resolveVote(bot, chatId), VOTE_MS);
+  s.voteTimer = setTimeout(() => resolveVote(bot, chatId), VOTE_MS);
 }
 
 // ─── Handle vote ───────────────────────────────────────────────────────────────
