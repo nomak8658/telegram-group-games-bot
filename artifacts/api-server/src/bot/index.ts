@@ -19,6 +19,7 @@ import {
 import {
   startOutsider, handleOutsiderJoin, handleOutsiderForceStart,
   handleOutsiderVote, handleOutsiderGuess,
+  handleOutsiderCatToggle, handleOutsiderCatAll, handleOutsiderCatDone,
 } from "./games/outsider.js";
 
 function menuMsg() {
@@ -363,6 +364,21 @@ export async function launchBot(): Promise<void> {
       }
 
       // ── برا السالفة ────────────────────────────────────────────────────────────
+      if (data.startsWith("out:cat:")) {
+        const rest = data.slice("out:cat:".length);
+        const colonIdx = rest.indexOf(":");
+        const chatId = parseInt(rest.slice(0, colonIdx), 10);
+        const catEnc = rest.slice(colonIdx + 1);
+        if (!isNaN(chatId)) { handleOutsiderCatToggle(bot, ctx, chatId, catEnc); return; }
+      }
+      if (data.startsWith("out:catall:")) {
+        const chatId = parseInt(data.slice("out:catall:".length), 10);
+        if (!isNaN(chatId)) { handleOutsiderCatAll(bot, ctx, chatId); return; }
+      }
+      if (data.startsWith("out:catdone:")) {
+        const chatId = parseInt(data.slice("out:catdone:".length), 10);
+        if (!isNaN(chatId)) { handleOutsiderCatDone(bot, ctx, chatId); return; }
+      }
       if (data.startsWith("out:join:")) {
         const chatId = parseInt(data.slice("out:join:".length), 10);
         if (!isNaN(chatId)) { handleOutsiderJoin(bot, ctx, chatId); return; }
