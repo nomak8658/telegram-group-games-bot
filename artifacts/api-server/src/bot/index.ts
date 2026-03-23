@@ -18,7 +18,7 @@ import {
 } from "./games/mafia.js";
 import {
   startOutsider, handleOutsiderJoin, handleOutsiderForceStart,
-  handleOutsiderVote, handleOutsiderGuess,
+  handleOutsiderVote, handleOutsiderGuess, handleOutsiderWordPick,
   handleOutsiderCatToggle, handleOutsiderCatAll, handleOutsiderCatDone,
 } from "./games/outsider.js";
 
@@ -392,6 +392,12 @@ export async function launchBot(): Promise<void> {
         const chatId   = parseInt(parts[2], 10);
         const targetId = parseInt(parts[3], 10);
         if (!isNaN(chatId) && !isNaN(targetId)) { handleOutsiderVote(bot, ctx, chatId, targetId); return; }
+      }
+      if (data.startsWith("out:guess:")) {
+        const parts = data.split(":");
+        const chatId = parseInt(parts[2], 10);
+        const idx    = parseInt(parts[3], 10);
+        if (!isNaN(chatId) && !isNaN(idx)) { handleOutsiderWordPick(bot, ctx, chatId, idx); return; }
       }
 
       await ctx.answerCbQuery().catch(() => {});
