@@ -30,70 +30,187 @@ function isArabic(text: string): boolean {
 
 const WORDS: Record<string, string[]> = {
   animals: [
-    // أليفة وشائعة جداً
     "قط","كلب","حصان","بقرة","شاة","خروف","ماعز","أرنب","ببغاء","حمام","دجاج","ديك","بط","إوزة",
-    "جمل","ناقة","حمار","بغل","جاموس","فأر",
-    // كبيرة وشهيرة
-    "أسد","نمر","فيل","زرافة","قرد","ثعلب","ذئب","دب","كركدن","فهد","شمبانزي","غوريلا","حصان",
-    "زبرا","غزال","وعل","أيل","نمس","ظبي","لاما","مها","يرقان","كنغر","ألباكا","ياك",
-    // طيور
-    "نسر","صقر","طاووس","بجعة","لقلق","فلامينغو","بومة","هدهد","بلبل","عصفور","غراب",
-    "شاهين","عندليب","طوقان","حجل","رخمة","عقاب","سنونو","يمامة","حجل","بطريق","كركي",
-    // بحرية
-    "دلفين","حوت","قرش","أخطبوط","حبار","نجم البحر","فقمة","أسد البحر","سلطعون","كركند",
-    "سمكة","تونة","سلطعون","حصان البحر","قنديل البحر",
-    // زواحف وبرمائيات
-    "تمساح","أفعى","ثعبان","كوبرا","سحلية","حرباء","سلحفاة","ضفدع","ضب","ورل","وزغ","برص",
-    // حشرات وأخرى
-    "نحلة","فراشة","نمل","صرصور","عقرب","بعوضة","ذبابة","دودة","خنفساء","حلزون","عنكبوت",
-    // إضافية شائعة في العربية
-    "خفاش","قنفذ","سنجاب","ضبع","وشق","غرير","دلق","ابن عرس","راكون","بابون","قرد المكاك",
+    "جمل","ناقة","حمار","بغل","جاموس","فأر","أسد","نمر","فيل","زرافة","قرد","ثعلب","ذئب","دب",
+    "كركدن","فهد","شمبانزي","غوريلا","زبرا","غزال","وعل","أيل","نمس","ظبي","لاما","مها","كنغر",
+    "ألباكا","ياك","نسر","صقر","طاووس","بجعة","لقلق","فلامينغو","بومة","هدهد","بلبل","عصفور",
+    "غراب","شاهين","عندليب","طوقان","حجل","عقاب","سنونو","يمامة","بطريق","كركي","دلفين","حوت",
+    "قرش","أخطبوط","حبار","فقمة","سلطعون","كركند","تونة","تمساح","أفعى","ثعبان","كوبرا","سحلية",
+    "حرباء","سلحفاة","ضفدع","ضب","ورل","وزغ","برص","نحلة","فراشة","نمل","صرصور","عقرب","بعوضة",
+    "خنفساء","حلزون","عنكبوت","خفاش","قنفذ","سنجاب","ضبع","غرير","راكون","بابون",
   ],
   fruits: [
-    "تفاح","موز","برتقال","عنب","بطيخ","فراولة","مانجو","خوخ","كمثرى","تين","رمان","ليمون","بطاطا",
-    "أناناس","كيوي","توت","كرز","خرموز","شمام","بلح","نخل","جوافة","بابايا","ليتشي","نارنج",
-    "زيتون","نبق","حصرم","عوسج","قشطة","آفوكادو","تمر","مشمش","برقوق","كراز","لوزة","فستق",
-    "جوز","لوز","حبحب","جريب فروت","مندرين","يوسفي","كلمنتين","نكتارين","إجاص","دراق","عليق",
+    "تفاح","موز","برتقال","عنب","بطيخ","فراولة","مانجو","خوخ","كمثرى","تين","رمان","ليمون",
+    "أناناس","كيوي","توت","كرز","شمام","بلح","جوافة","بابايا","ليتشي","نارنج","زيتون","نبق",
+    "قشطة","آفوكادو","تمر","مشمش","برقوق","كراز","لوز","فستق","جوز","جريب فروت","مندرين",
+    "يوسفي","نكتارين","إجاص","دراق","عليق","تمر هندي","جوز هند","خرموز","درّاق","حبحب",
   ],
   colors: [
     "أحمر","أزرق","أخضر","أصفر","أبيض","أسود","برتقالي","بنفسجي","وردي","بني","رمادي","ذهبي",
     "فضي","تركوازي","زيتي","كحلي","عنابي","قرمزي","فيروزي","أرجواني","سماوي","بيج","كريمي",
-    "خوخي","ليموني","بطيخي","نيلي","دموعي","شفاف","قاتم","فاتح","ملوني",
+    "خوخي","ليموني","بطيخي","نيلي","شفاف","قاتم","فاتح","أخضر زيتي","أزرق سماوي","بنفسجي داكن",
+    "أحمر داكن","رصاصي","خمري","نيلوفري","أزرق نيلي","أحمر أرجواني",
   ],
   cities_sa: [
     "الرياض","جدة","مكة","المدينة","الدمام","الخبر","الظهران","تبوك","أبها","خميس مشيط",
-    "حائل","نجران","جازان","ينبع","القطيف","الهفوف","الطائف","بريدة","عنيزة","أرامكو",
-    "المجمعة","الجبيل","شقراء","الزلفي","عرعر","سكاكا","القيصومة","رفحاء","طريف","وادي الدواسر",
-    "بيشة","المخواة","القنفذة","صبيا","احد رفيدة","ضباء","العُلا","العقيق","المندق",
+    "حائل","نجران","جازان","ينبع","القطيف","الهفوف","الطائف","بريدة","عنيزة","المجمعة",
+    "الجبيل","شقراء","الزلفي","عرعر","سكاكا","رفحاء","طريف","وادي الدواسر","بيشة","المخواة",
+    "القنفذة","صبيا","ضباء","العُلا","أبو عريش","الباحة","المدينة المنورة","رابغ","عفيف","المزاحمية",
+  ],
+  cities_world: [
+    "باريس","لندن","نيويورك","طوكيو","دبي","برلين","روما","مدريد","موسكو","بكين","سيدني",
+    "تورنتو","مومباي","القاهرة","لاغوس","مكسيكو","بوينس آيرس","برازيليا","إسطنبول","بانكوك",
+    "سيول","جاكرتا","مانيلا","هونج كونج","سنغافورة","كوالالمبور","كراتشي","لاهور","دلهي",
+    "شنغهاي","أمستردام","بروكسل","زيورخ","فيينا","براغ","وارسو","بودابست","أثينا","ليزبون",
   ],
   countries_ar: [
     "السعودية","مصر","الإمارات","الكويت","قطر","البحرين","عُمان","الأردن","لبنان","سوريا",
     "العراق","ليبيا","تونس","الجزائر","المغرب","السودان","اليمن","الصومال","موريتانيا","جيبوتي",
-    "فلسطين","الأراضي الفلسطينية",
+    "فلسطين","جزر القمر","إريتريا",
   ],
   countries_asia: [
     "الصين","اليابان","الهند","كوريا","تايلاند","إندونيسيا","ماليزيا","سنغافورة","فيتنام",
     "الفلبين","بنغلاديش","باكستان","أفغانستان","إيران","تركيا","كازاخستان","أوزبكستان",
-    "تركمانستان","أذربيجان","جورجيا","أرمينيا","نيبال","سريلانكا","ميانمار","كمبوديا","لاوس",
-    "منغوليا","كوريا الشمالية","تايوان","هونج كونج","تيمور الشرقية","بروناي","المالديف",
+    "أذربيجان","جورجيا","أرمينيا","نيبال","سريلانكا","ميانمار","كمبوديا","لاوس","منغوليا",
+    "تايوان","بروناي","المالديف","قيرغيزستان","طاجيكستان","تركمانستان",
+  ],
+  countries_europe: [
+    "فرنسا","ألمانيا","إيطاليا","إسبانيا","بريطانيا","روسيا","هولندا","بلجيكا","سويسرا",
+    "النمسا","السويد","النرويج","الدنمارك","فنلندا","بولندا","المجر","التشيك","اليونان",
+    "البرتغال","رومانيا","أوكرانيا","بيلاروسيا","صربيا","كرواتيا","سلوفينيا","بلغاريا",
+    "لوكسمبورغ","أيسلندا","أيرلندا","اسكتلندا","ويلز",
+  ],
+  countries_africa: [
+    "نيجيريا","إثيوبيا","تنزانيا","كينيا","جنوب أفريقيا","غانا","الكاميرون","أنغولا",
+    "موزمبيق","مدغشقر","زامبيا","زيمبابوي","السنغال","مالي","بوركينا فاسو","غينيا","رواندا",
+    "أوغندا","الكونغو","الكونغو الديمقراطية","ساحل العاج","الغابون","بوتسوانا","ناميبيا",
   ],
   jobs: [
     "طبيب","مهندس","معلم","محامي","طيار","ممرض","شرطي","جندي","عامل","فلاح","بائع","محاسب",
-    "مصمم","برمجة","مبرمج","مدير","مستشار","سائق","طباخ","حلاق","نجار","حداد","كهربائي",
-    "سباك","بناء","رسام","ممثل","صحفي","مذيع","فنان","موسيقي","رياضي","لاعب","مدرب",
-    "دكتور","صيدلاني","مختبر","أشعة","مساح","معماري","ديكور","مصور","مخرج","كاتب","شاعر",
+    "مصمم","مبرمج","مدير","مستشار","سائق","طباخ","حلاق","نجار","حداد","كهربائي","سباك",
+    "بناء","رسام","ممثل","صحفي","مذيع","فنان","موسيقي","لاعب","مدرب","صيدلاني","مصور",
+    "مخرج","كاتب","شاعر","باحث","أستاذ","نادل","كاشير","مزارع","ربان","قاضي","مفتي",
+    "مؤذن","خباز","جزار","خياط","نحات","ملاح","رائد فضاء","مفتش","محقق","عالم",
   ],
   food: [
     "كبسة","مندي","مطبق","حريس","جريش","صالونة","كباب","شاورما","فلافل","حمص","فتة","مسخن",
-    "مقلوبة","بريياني","سمبوسة","لقيمات","خبز","رز","عيش","لحم","دجاج","سمك","تمر","قهوة",
-    "شاي","لبن","عصير","هريس","بسبوسة","كنافة","قطايف","مهلبية","رز بالحليب","كليجا",
+    "مقلوبة","بريياني","سمبوسة","لقيمات","خبز","رز","تمر","قهوة","شاي","لبن","هريس",
+    "بسبوسة","كنافة","قطايف","مهلبية","كليجا","ملوخية","كشك","منسف","بيريك","باقلاء",
+    "فول","عدس","شعير","شيش طاووق","برياني","جريش","زبادي","لبنة","أرز","مضغوط","مرق",
+    "هرائس","أسيدة","شربة","بلح","تمر هندي","عصيدة","عجين","مقامير","خبيصة","قرصان",
+  ],
+  vegetables: [
+    "طماطم","بصل","ثوم","جزر","بطاطس","خيار","فلفل","كوسا","باذنجان","ملفوف","قرنبيط",
+    "بروكلي","سبانخ","خس","فاصولياء","بازلاء","ذرة","قرع","لفت","فجل","كرات","كرفس",
+    "بامية","هليون","فجل أبيض","بنجر","جعدة","أرضي شوكي","ملوخية","بقدونس","كزبرة",
+    "نعناع","شبت","زعتر","حلبة","كمون","كركم","زنجبيل","طرخون","ريحان",
+  ],
+  sports: [
+    "كرة قدم","كرة سلة","كرة طائرة","تنس","سباحة","جري","ملاكمة","مصارعة","غولف","جمباز",
+    "رماية","فروسية","رياضة الدراجات","سكواش","بادمنتون","تنس طاولة","رفع أثقال","كريكيت",
+    "هوكي","رغبي","أمريكان فوتبول","بيسبول","قفز","سيف","جودو","كاراتيه","تايكوندو",
+    "كيك بوكسينج","ألعاب قوى","مشي","تسلق","غطس","تجديف","ريف","سباق خيل","إسكي",
+  ],
+  electronics: [
+    "هاتف","جهاز لوحي","حاسوب","لابتوب","تلفاز","ثلاجة","غسالة","مكيف","مروحة","فرن",
+    "مايكروويف","سماعات","كاميرا","طابعة","راوتر","بلايستيشن","إكس بوكس","ساعة ذكية",
+    "سمارت تي في","شاشة","ماوس","كيبورد","وحدة تخزين","باور بنك","سماعات لاسلكية",
+    "درون","روبوت","جهاز بصمة","مكنسة كهربائية","ميزان إلكتروني","جهاز قياس ضغط",
+  ],
+  clothes: [
+    "ثوب","عباية","قميص","بنطلون","فستان","تنورة","جاكيت","معطف","بلوزة","تيشيرت",
+    "جوارب","حذاء","صندل","كوفية","شماغ","غترة","عقال","كاب","قبعة","حزام","ربطة عنق",
+    "بدلة","طقم","بيجامة","ملابس رياضية","شورت","بنطال جينز","سترة","كوت","بونشو",
+    "إيشارب","شال","قفازات","منتو","عباءة","بشت","سروال","توب","كارديغان",
+  ],
+  furniture: [
+    "كرسي","طاولة","سرير","خزانة","أريكة","رف","مكتب","خزانة ملابس","سجادة","ستارة",
+    "مرآة","إطار صورة","تلفاز","مصباح","وسادة","لحاف","مرتبة","ثلاجة","باب","نافذة",
+    "درج","بوفيه","كنبة","ركيزة","مشجب","صنبور","مغسلة","شماعة","منضدة جانبية",
+  ],
+  body_parts: [
+    "رأس","وجه","عين","أنف","أذن","فم","شفة","سن","لسان","رقبة","كتف","ذراع","مرفق",
+    "يد","أصبع","ظفر","صدر","بطن","ظهر","خصر","ورك","فخذ","ركبة","ساق","قدم","كعب",
+    "جبهة","خد","حاجب","رمش","حلق","قلب","رئة","كبد","كلية","معدة","عمود فقري",
+    "عضلة","وريد","شريان","جلد","عظم","مخ","دماغ",
+  ],
+  school_subjects: [
+    "رياضيات","علوم","تاريخ","جغرافيا","عربي","إنجليزي","فيزياء","كيمياء","أحياء",
+    "تربية إسلامية","تربية وطنية","فنون","موسيقى","حاسوب","اجتماعيات","فلسفة","منطق",
+    "اقتصاد","محاسبة","قانون","طب","هندسة","أدب","لغة عربية","تربية بدنية","حرف يدوية",
+  ],
+  languages: [
+    "عربي","إنجليزي","فرنسي","إسباني","ألماني","صيني","ياباني","روسي","برتغالي","إيطالي",
+    "هندي","أردو","بنغالي","تركي","فارسي","كوري","ملايو","إندونيسي","هولندي","بولندي",
+    "سويدي","نرويجي","دنماركي","فنلندي","يوناني","عبري","سواحيلي","هوسا","أمهرية",
+  ],
+  vehicles: [
+    "سيارة","دراجة","شاحنة","باص","قطار","طائرة","سفينة","قارب","دراجة نارية","طوافة",
+    "مترو","ترام","تاكسي","ليموزين","جيب","بيك آب","كارافان","مركبة فضائية","غواصة",
+    "عربة","قطار سريع","طائرة مروحية","زورق","مركب شراعي","لنش","ناقلة نفط","رافعة",
+    "بولدوزر","جرافة","حفارة","دراجة هوائية",
+  ],
+  car_brands: [
+    "تويوتا","هوندا","نيسان","بي إم دبليو","مرسيدس","أودي","فولكسفاغن","فورد","شيفرولية",
+    "لكزس","هيونداي","كيا","مازدا","سوبارو","ميتسوبيشي","سوزوكي","بيجو","رينو","سيتروين",
+    "فيراري","لامبورغيني","بورش","رولز رويس","بنتلي","جاغوار","أرييل","ماكلارين","أستون مارتن",
+    "لاند روفر","جيب","دودج","جنرال موتورز","هامر","لينكولن","إنفينيتي","أكيورا","جينيسيس",
   ],
   rivers: [
     "النيل","الفرات","دجلة","الأمازون","المسيسيبي","الفولغا","الراين","الدانوب","الميكونغ",
-    "الغانج","السند","نهر الصين الأصفر","اليانغتسي","الكونغو","النيجر","الزمبيزي","الأورال",
-    "الأوب","الينيسي","اللينا","المتزموري","الهدسون","كولورادو","أوهايو","ميسوري",
+    "الغانج","السند","اليانغتسي","الكونغو","النيجر","الزمبيزي","الأورال","الينيسي","اللينا",
+    "الهدسون","كولورادو","أوهايو","ميسوري","السين","الفستولا","أوكا","الإيبيريا","الإيبرو",
+  ],
+  seas_oceans: [
+    "المحيط الهادئ","المحيط الهندي","المحيط الأطلسي","المحيط المتجمد الشمالي","البحر المتوسط",
+    "البحر الأحمر","بحر العرب","الخليج العربي","بحر قزوين","البحر الأسود","بحر البلطيق",
+    "بحر الشمال","البحر الكاريبي","بحر قطر","البحر الأبيض","المحيط الجنوبي","بحر البنغال",
+    "بحر إيجه","بحر الصين الجنوبي","بحر اليابان","خليج المكسيك","خليج فارس",
+  ],
+  planets: [
+    "عطارد","الزهرة","الأرض","المريخ","المشتري","زحل","أورانوس","نبتون","بلوتو","القمر",
+    "الشمس","المجرة","نجم","كويكب","مذنب","ثقب أسود","نيبيرو","سيريس","هاليبوب","كيرون",
+    "إيو","يوروبا","غانيمد","كاليستو","تيتان","إنسيلادوس","ميراندا","أوبيرون","ترايتون",
+  ],
+  instruments: [
+    "بيانو","غيتار","كمان","طبل","ناي","عود","رباب","قانون","مزمار","بوق","طرومبيت",
+    "أكورديون","بانجو","هارمونيكا","أورغ","سنثسايزر","تشيللو","فيولا","كونترباس","أوبوا",
+    "كلارينيت","فلوت","ساكسفون","دف","طار","مرواس","كيبورد","ماريمبا","زيلوفون","باس",
+  ],
+  tools: [
+    "مطرقة","مفتاح ربط","مشرط","مسطرة","مثقاب","منشار","لحام","مبرد","قلم قياس",
+    "ميزان ماء","شريط قياس","مقص","كماشة","عتلة","إزميل","سنفرة","مسمار","براغي",
+    "مفك براغي","مبرد معادن","دلو","مجرفة","معول","فأس","منجل","جرافة يدوية","حفارة يد",
+  ],
+  arabic_names_m: [
+    "محمد","أحمد","علي","عمر","خالد","سعد","فهد","عبدالله","سلطان","عبدالرحمن","يوسف",
+    "إبراهيم","إسماعيل","بلال","حسن","حسين","ناصر","ماجد","عادل","وليد","زياد","طارق",
+    "هشام","باسم","راشد","سالم","مازن","كريم","جاسم","نواف","صالح","منصور","ياسر",
+    "فيصل","تركي","بندر","عبدالعزيز","سطام","متعب","مشعل","نايف","أنس","سامي","رامي",
+  ],
+  arabic_names_f: [
+    "فاطمة","عائشة","مريم","سارة","نورة","ريم","لمياء","هند","لينا","منى","رنا","دانة",
+    "أميرة","شيماء","زينب","خديجة","أسماء","رهف","غلا","ديما","رغد","مها","وفاء","سمية",
+    "حنان","نادية","إيمان","بشرى","شروق","أروى","هيفاء","ريهام","نهى","صفاء","وجدان",
+    "تهاني","ميار","جوري","صبا","علا","أماني","لجين","شمس","إلهام","نجاح",
   ],
 };
+
+// Keep inList working for multi-word list items (like "نجم البحر")
+function inListFull(answer: string, list: string[]): boolean {
+  const aTrimmed = answer.trim();
+  const aFirst   = normalize(aTrimmed.split(/\s+/)[0]);
+  if (aFirst.length < 2) return false;
+  const aNorm = normalize(aTrimmed);
+  return list.some(w => {
+    const nw = normalize(w);
+    if (nw === aNorm) return true;   // full match (multi-word)
+    if (nw === aFirst) return true;  // exact first-word match
+    if (aFirst.length >= 3 && nw.startsWith(aFirst) && aFirst.length >= nw.length - 2) return true;
+    if (aFirst.length >= 4 && aFirst.startsWith(nw) && nw.length >= aFirst.length - 1) return true;
+    return false;
+  });
+}
 
 function normalize(t: string): string {
   return t.trim()
@@ -102,21 +219,6 @@ function normalize(t: string): string {
     .replace(/[ى]/g, "ي")
     .replace(/[\u064B-\u065F]/g, "") // remove tashkeel
     .toLowerCase();
-}
-
-function inList(answer: string, list: string[]): boolean {
-  const a = normalize(answer.trim().split(/\s+/)[0]); // first word only
-  if (a.length < 2) return false;
-  return list.some(w => {
-    const nw = normalize(w);
-    // Exact match (after normalize)
-    if (nw === a) return true;
-    // Answer is a prefix of a list word (min 3 chars match) — handles "تمساح" vs "تمس"
-    if (a.length >= 3 && nw.startsWith(a) && a.length >= nw.length - 2) return true;
-    // List word is the answer (user wrote full correct word)
-    if (a.length >= 4 && a.startsWith(nw)) return true;
-    return false;
-  });
 }
 
 function validateAnswer(challenge: CircleChallenge, answer: string): boolean {
@@ -135,14 +237,12 @@ function validateAnswer(challenge: CircleChallenge, answer: string): boolean {
       if (!isArabic(t) || !challenge.letter) return false;
       return !normalize(t).includes(normalize(challenge.letter!));
     }
-    case "race": {
-      // any arabic word, at least 2 chars
+    case "race":
       return t.length >= 2 && isArabic(t);
-    }
     case "category": {
       if (!challenge.category) return false;
       const list = WORDS[challenge.category] ?? [];
-      return t.length >= 2 && isArabic(t) && inList(t, list);
+      return t.length >= 2 && isArabic(t) && inListFull(t, list);
     }
     default: return false;
   }
@@ -151,95 +251,229 @@ function validateAnswer(challenge: CircleChallenge, answer: string): boolean {
 // ─── Challenge bank ───────────────────────────────────────────────────────────
 
 const MATH: CircleChallenge[] = [
-  { kind: "math", text: "احسب: 7 × 8 = ؟",     expectedNum: 56,  timerSec: 12 },
-  { kind: "math", text: "احسب: 6 × 9 = ؟",     expectedNum: 54,  timerSec: 12 },
-  { kind: "math", text: "احسب: 15 + 27 = ؟",   expectedNum: 42,  timerSec: 12 },
-  { kind: "math", text: "احسب: 100 - 38 = ؟",  expectedNum: 62,  timerSec: 12 },
-  { kind: "math", text: "احسب: 48 ÷ 6 = ؟",   expectedNum: 8,   timerSec: 13 },
-  { kind: "math", text: "احسب: 13 × 4 = ؟",   expectedNum: 52,  timerSec: 12 },
-  { kind: "math", text: "احسب: 200 - 76 = ؟",  expectedNum: 124, timerSec: 14 },
-  { kind: "math", text: "احسب: 9 × 9 = ؟",     expectedNum: 81,  timerSec: 10 },
-  { kind: "math", text: "احسب: 144 ÷ 12 = ؟", expectedNum: 12,  timerSec: 12 },
-  { kind: "math", text: "احسب: 17 × 6 = ؟",   expectedNum: 102, timerSec: 14 },
-  { kind: "math", text: "احسب: 88 + 44 = ؟",  expectedNum: 132, timerSec: 13 },
-  { kind: "math", text: "احسب: 250 ÷ 5 = ؟",  expectedNum: 50,  timerSec: 12 },
-  { kind: "math", text: "احسب: 19 × 3 = ؟",   expectedNum: 57,  timerSec: 12 },
-  { kind: "math", text: "احسب: 300 - 127 = ؟", expectedNum: 173, timerSec: 14 },
-  { kind: "math", text: "احسب: 64 ÷ 8 = ؟",   expectedNum: 8,   timerSec: 11 },
-  { kind: "math", text: "احسب: 25 × 4 = ؟",   expectedNum: 100, timerSec: 12 },
+  // سهل
+  { kind: "math", text: "احسب: 7 × 8 = ؟",       expectedNum: 56,  timerSec: 11 },
+  { kind: "math", text: "احسب: 6 × 9 = ؟",       expectedNum: 54,  timerSec: 11 },
+  { kind: "math", text: "احسب: 9 × 9 = ؟",       expectedNum: 81,  timerSec: 10 },
+  { kind: "math", text: "احسب: 8 × 7 = ؟",       expectedNum: 56,  timerSec: 11 },
+  { kind: "math", text: "احسب: 12 × 6 = ؟",      expectedNum: 72,  timerSec: 11 },
+  { kind: "math", text: "احسب: 48 ÷ 6 = ؟",     expectedNum: 8,   timerSec: 12 },
+  { kind: "math", text: "احسب: 64 ÷ 8 = ؟",     expectedNum: 8,   timerSec: 11 },
+  { kind: "math", text: "احسب: 15 + 27 = ؟",     expectedNum: 42,  timerSec: 11 },
+  { kind: "math", text: "احسب: 33 + 49 = ؟",     expectedNum: 82,  timerSec: 12 },
+  { kind: "math", text: "احسب: 100 - 38 = ؟",    expectedNum: 62,  timerSec: 11 },
+  { kind: "math", text: "احسب: 150 - 67 = ؟",    expectedNum: 83,  timerSec: 12 },
+  // متوسط
+  { kind: "math", text: "احسب: 13 × 4 = ؟",     expectedNum: 52,  timerSec: 12 },
+  { kind: "math", text: "احسب: 17 × 6 = ؟",     expectedNum: 102, timerSec: 13 },
+  { kind: "math", text: "احسب: 19 × 3 = ؟",     expectedNum: 57,  timerSec: 12 },
+  { kind: "math", text: "احسب: 25 × 4 = ؟",     expectedNum: 100, timerSec: 11 },
+  { kind: "math", text: "احسب: 14 × 7 = ؟",     expectedNum: 98,  timerSec: 12 },
+  { kind: "math", text: "احسب: 88 + 44 = ؟",     expectedNum: 132, timerSec: 12 },
+  { kind: "math", text: "احسب: 250 ÷ 5 = ؟",   expectedNum: 50,  timerSec: 12 },
+  { kind: "math", text: "احسب: 144 ÷ 12 = ؟",  expectedNum: 12,  timerSec: 12 },
+  { kind: "math", text: "احسب: 200 - 76 = ؟",    expectedNum: 124, timerSec: 13 },
+  { kind: "math", text: "احسب: 300 - 127 = ؟",   expectedNum: 173, timerSec: 13 },
+  { kind: "math", text: "احسب: 11 × 11 = ؟",    expectedNum: 121, timerSec: 12 },
+  { kind: "math", text: "احسب: 23 + 58 = ؟",     expectedNum: 81,  timerSec: 12 },
+  // صعب
+  { kind: "math", text: "احسب: 16 × 9 = ؟",     expectedNum: 144, timerSec: 14 },
+  { kind: "math", text: "احسب: 23 × 8 = ؟",     expectedNum: 184, timerSec: 14 },
+  { kind: "math", text: "احسب: 450 ÷ 9 = ؟",   expectedNum: 50,  timerSec: 13 },
+  { kind: "math", text: "احسب: 500 - 247 = ؟",   expectedNum: 253, timerSec: 14 },
+  { kind: "math", text: "احسب: 18 × 12 = ؟",    expectedNum: 216, timerSec: 15 },
+  { kind: "math", text: "احسب: 125 + 376 = ؟",   expectedNum: 501, timerSec: 14 },
+  { kind: "math", text: "احسب: 999 - 456 = ؟",   expectedNum: 543, timerSec: 14 },
+  { kind: "math", text: "احسب: 36 × 5 = ؟",     expectedNum: 180, timerSec: 13 },
 ];
 
 const STARTS: CircleChallenge[] = [
-  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "م"',  letter: "م", timerSec: 10 },
-  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "س"',  letter: "س", timerSec: 10 },
-  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ب"',  letter: "ب", timerSec: 10 },
-  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ح"',  letter: "ح", timerSec: 10 },
-  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ك"',  letter: "ك", timerSec: 10 },
-  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "د"',  letter: "د", timerSec: 10 },
-  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ج"',  letter: "ج", timerSec: 10 },
-  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ف"',  letter: "ف", timerSec: 10 },
-  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ن"',  letter: "ن", timerSec: 10 },
-  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ل"',  letter: "ل", timerSec: 10 },
-  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ر"',  letter: "ر", timerSec: 10 },
-  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ز"',  letter: "ز", timerSec: 10 },
-  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "خ"',  letter: "خ", timerSec: 10 },
-  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ع"',  letter: "ع", timerSec: 10 },
-  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ق"',  letter: "ق", timerSec: 10 },
-  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ش"',  letter: "ش", timerSec: 10 },
-  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ت"',  letter: "ت", timerSec: 10 },
-  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "ه"',  letter: "ه", timerSec: 10 },
-  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "و"',  letter: "و", timerSec: 10 },
-  { kind: "starts", text: 'اكتب كلمة عربية تبدأ بحرف "أ"',  letter: "أ", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "م"',  letter: "م", timerSec: 9 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "س"',  letter: "س", timerSec: 9 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "ب"',  letter: "ب", timerSec: 9 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "ح"',  letter: "ح", timerSec: 9 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "ك"',  letter: "ك", timerSec: 9 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "د"',  letter: "د", timerSec: 9 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "ج"',  letter: "ج", timerSec: 9 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "ف"',  letter: "ف", timerSec: 9 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "ن"',  letter: "ن", timerSec: 9 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "ل"',  letter: "ل", timerSec: 9 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "ر"',  letter: "ر", timerSec: 9 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "ز"',  letter: "ز", timerSec: 9 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "خ"',  letter: "خ", timerSec: 9 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "ع"',  letter: "ع", timerSec: 9 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "ق"',  letter: "ق", timerSec: 9 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "ش"',  letter: "ش", timerSec: 9 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "ت"',  letter: "ت", timerSec: 9 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "ه"',  letter: "ه", timerSec: 9 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "و"',  letter: "و", timerSec: 9 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "أ"',  letter: "أ", timerSec: 9 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "ط"',  letter: "ط", timerSec: 9 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "ذ"',  letter: "ذ", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "غ"',  letter: "غ", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "ص"',  letter: "ص", timerSec: 9 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "ض"',  letter: "ض", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "ث"',  letter: "ث", timerSec: 10 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "ظ"',  letter: "ظ", timerSec: 11 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "ي"',  letter: "ي", timerSec: 9 },
+  { kind: "starts", text: 'اكتب كلمة تبدأ بحرف "إ"',  letter: "إ", timerSec: 9 },
 ];
 
 const NO_LETTER: CircleChallenge[] = [
-  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "ا"',  letter: "ا", timerSec: 14 },
-  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "ل"',  letter: "ل", timerSec: 14 },
-  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "م"',  letter: "م", timerSec: 14 },
-  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "ن"',  letter: "ن", timerSec: 14 },
-  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "ي"',  letter: "ي", timerSec: 14 },
-  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "و"',  letter: "و", timerSec: 14 },
-  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "ب"',  letter: "ب", timerSec: 14 },
-  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "ر"',  letter: "ر", timerSec: 14 },
-  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "ع"',  letter: "ع", timerSec: 14 },
-  { kind: "no_letter", text: 'اكتب كلمة عربية لا تحتوي حرف "ه"',  letter: "ه", timerSec: 14 },
+  { kind: "no_letter", text: 'كلمة لا تحتوي حرف "ا"',  letter: "ا", timerSec: 13 },
+  { kind: "no_letter", text: 'كلمة لا تحتوي حرف "ل"',  letter: "ل", timerSec: 13 },
+  { kind: "no_letter", text: 'كلمة لا تحتوي حرف "م"',  letter: "م", timerSec: 13 },
+  { kind: "no_letter", text: 'كلمة لا تحتوي حرف "ن"',  letter: "ن", timerSec: 13 },
+  { kind: "no_letter", text: 'كلمة لا تحتوي حرف "ي"',  letter: "ي", timerSec: 13 },
+  { kind: "no_letter", text: 'كلمة لا تحتوي حرف "و"',  letter: "و", timerSec: 13 },
+  { kind: "no_letter", text: 'كلمة لا تحتوي حرف "ب"',  letter: "ب", timerSec: 13 },
+  { kind: "no_letter", text: 'كلمة لا تحتوي حرف "ر"',  letter: "ر", timerSec: 13 },
+  { kind: "no_letter", text: 'كلمة لا تحتوي حرف "ع"',  letter: "ع", timerSec: 13 },
+  { kind: "no_letter", text: 'كلمة لا تحتوي حرف "ه"',  letter: "ه", timerSec: 13 },
+  { kind: "no_letter", text: 'كلمة لا تحتوي حرف "س"',  letter: "س", timerSec: 14 },
+  { kind: "no_letter", text: 'كلمة لا تحتوي حرف "ك"',  letter: "ك", timerSec: 14 },
+  { kind: "no_letter", text: 'كلمة لا تحتوي حرف "ف"',  letter: "ف", timerSec: 14 },
+  { kind: "no_letter", text: 'كلمة لا تحتوي حرف "ق"',  letter: "ق", timerSec: 15 },
+  { kind: "no_letter", text: 'كلمة لا تحتوي حرف "د"',  letter: "د", timerSec: 14 },
+  { kind: "no_letter", text: 'كلمة لا تحتوي حرف "ت"',  letter: "ت", timerSec: 14 },
 ];
 
 const RACE: CircleChallenge[] = [
-  { kind: "race", text: "اكتب أي كلمة عربية أسرع ما تقدر!", timerSec: 8 },
+  { kind: "race", text: "اكتب أي كلمة عربية أسرع ما تقدر!",     timerSec: 8 },
   { kind: "race", text: "اكتب أي كلمة عربية الآن! — الأبطأ يطلع", timerSec: 9 },
-  { kind: "race", text: "اكتب كلمة بسرعة! — آخر واحد يجاوب يطلع", timerSec: 8 },
+  { kind: "race", text: "كلمة بسرعة! — آخر واحد يجاوب يطلع",    timerSec: 8 },
+  { kind: "race", text: "شيل أسرع كلمة عربية عندك!",              timerSec: 7 },
+  { kind: "race", text: "اكتب الآن أي شيء عربي!",                 timerSec: 8 },
 ];
 
+// ─── الفئات الكاملة ────────────────────────────────────────────────────────────
+
+const CAT_LABEL: Record<string, string> = {
+  animals:       "🐾 حيوانات",
+  fruits:        "🍓 فواكه",
+  colors:        "🎨 ألوان",
+  cities_sa:     "🏙️ مدن سعودية",
+  cities_world:  "🌆 مدن عالمية",
+  countries_ar:  "🌍 دول عربية",
+  countries_asia:"🌏 دول آسيا",
+  countries_europe:"🇪🇺 دول أوروبا",
+  countries_africa:"🌍 دول أفريقيا",
+  jobs:          "💼 مهن",
+  food:          "🍽️ أكل شعبي",
+  vegetables:    "🥦 خضار",
+  sports:        "⚽ رياضة",
+  electronics:   "📱 أجهزة إلكترونية",
+  clothes:       "👔 ملابس",
+  furniture:     "🛋️ أثاث",
+  body_parts:    "🫀 أعضاء الجسم",
+  school_subjects:"📚 مواد دراسية",
+  languages:     "🗣️ لغات",
+  vehicles:      "🚗 مركبات",
+  car_brands:    "🏎️ ماركات سيارات",
+  rivers:        "🌊 أنهار",
+  seas_oceans:   "🌊 بحار ومحيطات",
+  planets:       "🪐 كواكب وفلك",
+  instruments:   "🎵 آلات موسيقية",
+  tools:         "🔧 أدوات",
+  arabic_names_m:"👦 أسماء رجال",
+  arabic_names_f:"👧 أسماء نساء",
+};
+
 const CATEGORY: CircleChallenge[] = [
-  { kind: "category", category: "animals",      text: "اكتب اسم حيوان!", timerSec: 10 },
-  { kind: "category", category: "animals",      text: "اكتب اسم حيوان بري!", timerSec: 10 },
-  { kind: "category", category: "animals",      text: "اسم حيوان — الإجابة الغلط تطلعك!", timerSec: 10 },
-  { kind: "category", category: "fruits",       text: "اكتب اسم فاكهة!", timerSec: 10 },
-  { kind: "category", category: "fruits",       text: "اسم فاكهة أو ثمرة فقط — غيرها يطلعك!", timerSec: 10 },
-  { kind: "category", category: "colors",       text: "اكتب اسم لون!", timerSec: 8 },
-  { kind: "category", category: "colors",       text: "اسم لون فقط — أي كلمة ثانية تطلعك!", timerSec: 8 },
-  { kind: "category", category: "cities_sa",    text: "اكتب اسم مدينة سعودية!", timerSec: 11 },
-  { kind: "category", category: "cities_sa",    text: "مدينة سعودية فقط — غيرها يطلعك!", timerSec: 11 },
-  { kind: "category", category: "countries_ar", text: "اكتب اسم دولة عربية!", timerSec: 10 },
-  { kind: "category", category: "countries_ar", text: "دولة عربية فقط — أي دولة ثانية تطلعك!", timerSec: 10 },
-  { kind: "category", category: "countries_asia", text: "اكتب اسم دولة من آسيا!", timerSec: 11 },
-  { kind: "category", category: "jobs",         text: "اكتب اسم مهنة!", timerSec: 9 },
-  { kind: "category", category: "jobs",         text: "مهنة فقط — أي كلمة ثانية تطلعك!", timerSec: 9 },
-  { kind: "category", category: "food",         text: "اكتب اسم أكلة شعبية!", timerSec: 10 },
-  { kind: "category", category: "food",         text: "اسم أكل أو شراب شعبي — غيره يطلعك!", timerSec: 10 },
-  { kind: "category", category: "rivers",       text: "اكتب اسم نهر في العالم!", timerSec: 12 },
+  // حيوانات
+  { kind: "category", category: "animals",       text: "اكتب اسم حيوان!",             timerSec: 10 },
+  { kind: "category", category: "animals",       text: "اسم حيوان بري فقط!",           timerSec: 10 },
+  { kind: "category", category: "animals",       text: "اسم حيوان أليف أو بري!",       timerSec: 10 },
+  // فواكه
+  { kind: "category", category: "fruits",        text: "اسم فاكهة!",                   timerSec: 10 },
+  { kind: "category", category: "fruits",        text: "اكتب اسم ثمرة أو فاكهة!",     timerSec: 10 },
+  // ألوان
+  { kind: "category", category: "colors",        text: "اكتب اسم لون!",                timerSec: 8 },
+  { kind: "category", category: "colors",        text: "اسم لون فقط — غيره تطلع!",    timerSec: 8 },
+  // مدن سعودية
+  { kind: "category", category: "cities_sa",     text: "اسم مدينة سعودية!",            timerSec: 11 },
+  { kind: "category", category: "cities_sa",     text: "مدينة من مدن المملكة!",        timerSec: 11 },
+  // مدن عالمية
+  { kind: "category", category: "cities_world",  text: "اسم مدينة من العالم!",         timerSec: 11 },
+  { kind: "category", category: "cities_world",  text: "اكتب عاصمة أو مدينة عالمية!", timerSec: 12 },
+  // دول عربية
+  { kind: "category", category: "countries_ar",  text: "اسم دولة عربية!",              timerSec: 10 },
+  // دول آسيا
+  { kind: "category", category: "countries_asia","text": "اسم دولة من آسيا!",          timerSec: 11 },
+  // دول أوروبا
+  { kind: "category", category: "countries_europe", text: "اسم دولة من أوروبا!",      timerSec: 11 },
+  { kind: "category", category: "countries_europe", text: "دولة أوروبية فقط!",        timerSec: 11 },
+  // دول أفريقيا
+  { kind: "category", category: "countries_africa", text: "اسم دولة من أفريقيا!",    timerSec: 12 },
+  // مهن
+  { kind: "category", category: "jobs",          text: "اسم مهنة!",                    timerSec: 9 },
+  { kind: "category", category: "jobs",          text: "اكتب اسم وظيفة أو مهنة!",    timerSec: 9 },
+  // أكل
+  { kind: "category", category: "food",          text: "اسم أكلة أو شراب شعبي!",      timerSec: 10 },
+  { kind: "category", category: "food",          text: "اكتب اسم طعام أو مشروب!",    timerSec: 10 },
+  // خضار
+  { kind: "category", category: "vegetables",    text: "اسم خضار أو نبات أكلي!",      timerSec: 10 },
+  { kind: "category", category: "vegetables",    text: "اكتب اسم خضار!",              timerSec: 10 },
+  // رياضة
+  { kind: "category", category: "sports",        text: "اسم رياضة!",                   timerSec: 9 },
+  { kind: "category", category: "sports",        text: "نوع رياضة من الرياضات!",      timerSec: 10 },
+  // أجهزة
+  { kind: "category", category: "electronics",   text: "اسم جهاز إلكتروني!",          timerSec: 10 },
+  { kind: "category", category: "electronics",   text: "جهاز كهربائي أو إلكتروني!",   timerSec: 10 },
+  // ملابس
+  { kind: "category", category: "clothes",       text: "اسم قطعة ملابس!",              timerSec: 9 },
+  { kind: "category", category: "clothes",       text: "لبسة أو إكسسوار!",             timerSec: 9 },
+  // أثاث
+  { kind: "category", category: "furniture",     text: "اسم قطعة أثاث!",              timerSec: 10 },
+  // أعضاء الجسم
+  { kind: "category", category: "body_parts",    text: "اسم عضو من أعضاء الجسم!",    timerSec: 9 },
+  { kind: "category", category: "body_parts",    text: "جزء من جسم الإنسان!",         timerSec: 9 },
+  // مواد دراسية
+  { kind: "category", category: "school_subjects", text: "اسم مادة دراسية!",          timerSec: 9 },
+  // لغات
+  { kind: "category", category: "languages",     text: "اسم لغة من لغات العالم!",     timerSec: 10 },
+  // مركبات
+  { kind: "category", category: "vehicles",      text: "اسم مركبة أو وسيلة نقل!",    timerSec: 10 },
+  { kind: "category", category: "vehicles",      text: "نوع مواصلات!",                timerSec: 9 },
+  // ماركات سيارات
+  { kind: "category", category: "car_brands",    text: "اسم ماركة سيارة!",            timerSec: 10 },
+  { kind: "category", category: "car_brands",    text: "ماركة سيارة مشهورة!",         timerSec: 10 },
+  // أنهار
+  { kind: "category", category: "rivers",        text: "اسم نهر في العالم!",           timerSec: 12 },
+  // بحار ومحيطات
+  { kind: "category", category: "seas_oceans",   text: "اسم بحر أو محيط!",            timerSec: 12 },
+  // كواكب
+  { kind: "category", category: "planets",       text: "اسم كوكب أو جرم فلكي!",      timerSec: 11 },
+  // آلات موسيقية
+  { kind: "category", category: "instruments",   text: "اسم آلة موسيقية!",            timerSec: 10 },
+  // أدوات
+  { kind: "category", category: "tools",         text: "اسم أداة أو عدة!",            timerSec: 10 },
+  // أسماء
+  { kind: "category", category: "arabic_names_m", text: "اسم رجل عربي!",             timerSec: 9 },
+  { kind: "category", category: "arabic_names_f", text: "اسم بنت عربي!",             timerSec: 9 },
 ];
 
 function pickChallenge(round: number, used: Set<string>): CircleChallenge {
+  // Build a weighted pool based on round number
   let pool: CircleChallenge[];
-  if (round <= 2)       pool = [...RACE, ...CATEGORY.slice(0, 8)];
-  else if (round <= 4)  pool = [...CATEGORY, ...STARTS.slice(0, 10)];
-  else if (round <= 7)  pool = [...MATH.slice(0, 8), ...CATEGORY, ...STARTS, ...NO_LETTER.slice(0, 4)];
-  else                  pool = [...MATH, ...NO_LETTER, ...STARTS, ...CATEGORY];
+  if (round === 1) {
+    // Round 1: easy — race + simple categories
+    pool = [...RACE, ...CATEGORY.filter(c =>
+      ["animals","fruits","colors","jobs","food","sports","clothes","vehicles"].includes(c.category ?? "")
+    ).slice(0, 12)];
+  } else if (round <= 3) {
+    // Rounds 2-3: categories + starts (easy letters)
+    pool = [...CATEGORY, ...STARTS.slice(0, 15)];
+  } else if (round <= 6) {
+    // Rounds 4-6: everything mixed
+    pool = [...CATEGORY, ...STARTS, ...MATH.slice(0, 16), ...NO_LETTER.slice(0, 8)];
+  } else {
+    // Round 7+: harder — all types, more math and no_letter
+    pool = [...CATEGORY, ...STARTS, ...MATH, ...NO_LETTER];
+  }
 
   const fresh   = pool.filter(c => !used.has(c.text));
-  const choices = fresh.length > 0 ? fresh : pool;
+  const choices = fresh.length > 0 ? fresh : pool; // fallback: reuse if all used
   const pick    = choices[Math.floor(Math.random() * choices.length)];
   used.add(pick.text);
   return pick;
@@ -484,11 +718,6 @@ async function sendChallenge(bot: Telegraf, chatId: number): Promise<void> {
   if (s.round >= 7) header += `  🔥`;
 
   // Challenge type hint
-  const catLabel: Record<string, string> = {
-    animals: "🐾 حيوانات", fruits: "🍓 فواكه", colors: "🎨 ألوان",
-    cities_sa: "🏙️ مدن سعودية", countries_ar: "🌍 دول عربية",
-    countries_asia: "🌏 دول آسيا", jobs: "💼 مهن", food: "🍽️ أكل شعبي", rivers: "🌊 أنهار",
-  };
   let hint = "";
   if (challenge.kind === "math")      hint = "📐 <b>حساب</b> — اكتب الرقم بالأرقام فقط";
   if (challenge.kind === "starts")    hint = "✍️ <b>كلمة بحرف معين</b> — أول كلمة صح تنجو";
@@ -496,7 +725,7 @@ async function sendChallenge(bot: Telegraf, chatId: number): Promise<void> {
   if (challenge.kind === "race")      hint = "⚡ <b>سباق كلمات</b> — أسرع كلمة عربية تنجو";
   if (challenge.kind === "category") {
     const cat = challenge.category ?? "";
-    hint = `🎯 <b>الفئة: ${catLabel[cat] ?? cat}</b> — كلمة خارج الفئة = إقصاء فوري`;
+    hint = `🎯 <b>الفئة: ${CAT_LABEL[cat] ?? cat}</b> — كلمة خارج الفئة = إقصاء فوري`;
   }
 
   const msg = await bot.telegram.sendMessage(
@@ -587,14 +816,9 @@ async function resolveChallenge(bot: Telegraf, chatId: number): Promise<void> {
     result += `\n💡 الجواب الصح: <b>${challenge.expectedNum}</b>`;
   }
   if (challenge.kind === "category") {
-    const catLabelR: Record<string, string> = {
-      animals: "🐾 حيوانات", fruits: "🍓 فواكه", colors: "🎨 ألوان",
-      cities_sa: "🏙️ مدن سعودية", countries_ar: "🌍 دول عربية",
-      countries_asia: "🌏 دول آسيا", jobs: "💼 مهن", food: "🍽️ أكل شعبي", rivers: "🌊 أنهار",
-    };
     const cat = challenge.category ?? "";
     if (wrong.length > 0)
-      result += `\n💡 المقبول فقط: <b>${catLabelR[cat] ?? cat}</b> — كلمة خارج الفئة = خطأ`;
+      result += `\n💡 المقبول فقط: <b>${CAT_LABEL[cat] ?? cat}</b> — كلمة خارج الفئة = خطأ`;
   }
 
   if (elimCandidates.length === 0) {
