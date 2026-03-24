@@ -244,6 +244,20 @@ function validateAnswer(challenge: CircleChallenge, answer: string): boolean {
       const list = WORDS[challenge.category] ?? [];
       return t.length >= 2 && isArabic(t) && inListFull(t, list);
     }
+    case "long_word": {
+      // Word must be at least minLen Arabic letters (count only Arabic chars)
+      const arabic = t.replace(/[^ا-ي]/g, "");
+      return arabic.length >= (challenge.minLen ?? 5) && isArabic(t);
+    }
+    case "short_word": {
+      // Word must be at most maxLen Arabic letters
+      const arabic2 = t.replace(/[^ا-ي]/g, "");
+      return arabic2.length >= 2 && arabic2.length <= (challenge.maxLen ?? 3) && isArabic(t);
+    }
+    case "contains": {
+      if (!isArabic(t) || !challenge.letter) return false;
+      return normalize(t).includes(normalize(challenge.letter!));
+    }
     default: return false;
   }
 }
@@ -380,100 +394,152 @@ const CAT_LABEL: Record<string, string> = {
 };
 
 const CATEGORY: CircleChallenge[] = [
-  // حيوانات
-  { kind: "category", category: "animals",       text: "اكتب اسم حيوان!",             timerSec: 10 },
-  { kind: "category", category: "animals",       text: "اسم حيوان بري فقط!",           timerSec: 10 },
-  { kind: "category", category: "animals",       text: "اسم حيوان أليف أو بري!",       timerSec: 10 },
-  // فواكه
-  { kind: "category", category: "fruits",        text: "اسم فاكهة!",                   timerSec: 10 },
-  { kind: "category", category: "fruits",        text: "اكتب اسم ثمرة أو فاكهة!",     timerSec: 10 },
-  // ألوان
-  { kind: "category", category: "colors",        text: "اكتب اسم لون!",                timerSec: 8 },
-  { kind: "category", category: "colors",        text: "اسم لون فقط — غيره تطلع!",    timerSec: 8 },
-  // مدن سعودية
-  { kind: "category", category: "cities_sa",     text: "اسم مدينة سعودية!",            timerSec: 11 },
-  { kind: "category", category: "cities_sa",     text: "مدينة من مدن المملكة!",        timerSec: 11 },
-  // مدن عالمية
-  { kind: "category", category: "cities_world",  text: "اسم مدينة من العالم!",         timerSec: 11 },
-  { kind: "category", category: "cities_world",  text: "اكتب عاصمة أو مدينة عالمية!", timerSec: 12 },
-  // دول عربية
-  { kind: "category", category: "countries_ar",  text: "اسم دولة عربية!",              timerSec: 10 },
-  // دول آسيا
-  { kind: "category", category: "countries_asia","text": "اسم دولة من آسيا!",          timerSec: 11 },
-  // دول أوروبا
-  { kind: "category", category: "countries_europe", text: "اسم دولة من أوروبا!",      timerSec: 11 },
-  { kind: "category", category: "countries_europe", text: "دولة أوروبية فقط!",        timerSec: 11 },
-  // دول أفريقيا
-  { kind: "category", category: "countries_africa", text: "اسم دولة من أفريقيا!",    timerSec: 12 },
-  // مهن
-  { kind: "category", category: "jobs",          text: "اسم مهنة!",                    timerSec: 9 },
-  { kind: "category", category: "jobs",          text: "اكتب اسم وظيفة أو مهنة!",    timerSec: 9 },
-  // أكل
-  { kind: "category", category: "food",          text: "اسم أكلة أو شراب شعبي!",      timerSec: 10 },
-  { kind: "category", category: "food",          text: "اكتب اسم طعام أو مشروب!",    timerSec: 10 },
-  // خضار
-  { kind: "category", category: "vegetables",    text: "اسم خضار أو نبات أكلي!",      timerSec: 10 },
-  { kind: "category", category: "vegetables",    text: "اكتب اسم خضار!",              timerSec: 10 },
-  // رياضة
-  { kind: "category", category: "sports",        text: "اسم رياضة!",                   timerSec: 9 },
-  { kind: "category", category: "sports",        text: "نوع رياضة من الرياضات!",      timerSec: 10 },
-  // أجهزة
-  { kind: "category", category: "electronics",   text: "اسم جهاز إلكتروني!",          timerSec: 10 },
-  { kind: "category", category: "electronics",   text: "جهاز كهربائي أو إلكتروني!",   timerSec: 10 },
-  // ملابس
-  { kind: "category", category: "clothes",       text: "اسم قطعة ملابس!",              timerSec: 9 },
-  { kind: "category", category: "clothes",       text: "لبسة أو إكسسوار!",             timerSec: 9 },
-  // أثاث
-  { kind: "category", category: "furniture",     text: "اسم قطعة أثاث!",              timerSec: 10 },
-  // أعضاء الجسم
-  { kind: "category", category: "body_parts",    text: "اسم عضو من أعضاء الجسم!",    timerSec: 9 },
-  { kind: "category", category: "body_parts",    text: "جزء من جسم الإنسان!",         timerSec: 9 },
-  // مواد دراسية
-  { kind: "category", category: "school_subjects", text: "اسم مادة دراسية!",          timerSec: 9 },
-  // لغات
-  { kind: "category", category: "languages",     text: "اسم لغة من لغات العالم!",     timerSec: 10 },
-  // مركبات
-  { kind: "category", category: "vehicles",      text: "اسم مركبة أو وسيلة نقل!",    timerSec: 10 },
-  { kind: "category", category: "vehicles",      text: "نوع مواصلات!",                timerSec: 9 },
-  // ماركات سيارات
-  { kind: "category", category: "car_brands",    text: "اسم ماركة سيارة!",            timerSec: 10 },
-  { kind: "category", category: "car_brands",    text: "ماركة سيارة مشهورة!",         timerSec: 10 },
-  // أنهار
-  { kind: "category", category: "rivers",        text: "اسم نهر في العالم!",           timerSec: 12 },
-  // بحار ومحيطات
-  { kind: "category", category: "seas_oceans",   text: "اسم بحر أو محيط!",            timerSec: 12 },
-  // كواكب
-  { kind: "category", category: "planets",       text: "اسم كوكب أو جرم فلكي!",      timerSec: 11 },
-  // آلات موسيقية
-  { kind: "category", category: "instruments",   text: "اسم آلة موسيقية!",            timerSec: 10 },
-  // أدوات
-  { kind: "category", category: "tools",         text: "اسم أداة أو عدة!",            timerSec: 10 },
-  // أسماء
-  { kind: "category", category: "arabic_names_m", text: "اسم رجل عربي!",             timerSec: 9 },
-  { kind: "category", category: "arabic_names_f", text: "اسم بنت عربي!",             timerSec: 9 },
+  // 🐾 حيوانات
+  { kind: "category", category: "animals", text: "🐾 اكتب اسم حيوان!", timerSec: 10 },
+  { kind: "category", category: "animals", text: "🦁 اسم حيوان بري فقط!", timerSec: 10 },
+  { kind: "category", category: "animals", text: "🐟 اسم حيوان بحري!", timerSec: 10 },
+  { kind: "category", category: "animals", text: "🦅 اسم طير أو حيوان!", timerSec: 10 },
+  // 🍓 فواكه
+  { kind: "category", category: "fruits", text: "🍓 اسم فاكهة!", timerSec: 10 },
+  { kind: "category", category: "fruits", text: "🍊 اكتب اسم ثمرة أو فاكهة!", timerSec: 10 },
+  { kind: "category", category: "fruits", text: "🍇 فاكهة تحبها!", timerSec: 9 },
+  // 🎨 ألوان
+  { kind: "category", category: "colors", text: "🎨 اسم لون!", timerSec: 8 },
+  { kind: "category", category: "colors", text: "🌈 اسم أي لون من الألوان!", timerSec: 8 },
+  { kind: "category", category: "colors", text: "🖌️ لون — غير اللون تطلع!", timerSec: 8 },
+  // 🏙️ مدن سعودية
+  { kind: "category", category: "cities_sa", text: "🏙️ اسم مدينة سعودية!", timerSec: 11 },
+  { kind: "category", category: "cities_sa", text: "🇸🇦 مدينة من مدن المملكة!", timerSec: 11 },
+  // 🌆 مدن عالمية
+  { kind: "category", category: "cities_world", text: "🌆 اسم مدينة من العالم!", timerSec: 11 },
+  { kind: "category", category: "cities_world", text: "✈️ عاصمة أو مدينة عالمية!", timerSec: 12 },
+  // 🌍 دول
+  { kind: "category", category: "countries_ar", text: "🌍 اسم دولة عربية!", timerSec: 10 },
+  { kind: "category", category: "countries_ar", text: "🕌 دولة من الوطن العربي!", timerSec: 10 },
+  { kind: "category", category: "countries_asia", text: "🌏 اسم دولة من آسيا!", timerSec: 11 },
+  { kind: "category", category: "countries_europe", text: "🇪🇺 اسم دولة من أوروبا!", timerSec: 11 },
+  { kind: "category", category: "countries_europe", text: "🏰 دولة أوروبية!", timerSec: 11 },
+  { kind: "category", category: "countries_africa", text: "🌍 اسم دولة من أفريقيا!", timerSec: 12 },
+  // 💼 مهن
+  { kind: "category", category: "jobs", text: "💼 اسم مهنة!", timerSec: 9 },
+  { kind: "category", category: "jobs", text: "👨‍⚕️ اسم وظيفة أو مهنة!", timerSec: 9 },
+  { kind: "category", category: "jobs", text: "🛠️ شغلة أو مهنة!", timerSec: 9 },
+  // 🍽️ أكل
+  { kind: "category", category: "food", text: "🍽️ اسم أكلة شعبية!", timerSec: 10 },
+  { kind: "category", category: "food", text: "☕ اسم أكل أو مشروب!", timerSec: 10 },
+  { kind: "category", category: "food", text: "🍖 طعام أو حلى!", timerSec: 10 },
+  // 🥦 خضار
+  { kind: "category", category: "vegetables", text: "🥦 اسم خضار!", timerSec: 10 },
+  { kind: "category", category: "vegetables", text: "🥕 خضرة تؤكل!", timerSec: 10 },
+  // ⚽ رياضة
+  { kind: "category", category: "sports", text: "⚽ اسم رياضة!", timerSec: 9 },
+  { kind: "category", category: "sports", text: "🏆 نوع رياضة!", timerSec: 9 },
+  { kind: "category", category: "sports", text: "🎽 رياضة فردية أو جماعية!", timerSec: 10 },
+  // 📱 أجهزة
+  { kind: "category", category: "electronics", text: "📱 اسم جهاز إلكتروني!", timerSec: 10 },
+  { kind: "category", category: "electronics", text: "💻 جهاز كهربائي أو ذكي!", timerSec: 10 },
+  // 👔 ملابس
+  { kind: "category", category: "clothes", text: "👔 اسم قطعة ملابس!", timerSec: 9 },
+  { kind: "category", category: "clothes", text: "👗 لبسة أو إكسسوار!", timerSec: 9 },
+  { kind: "category", category: "clothes", text: "🧣 شيء تلبسه!", timerSec: 9 },
+  // 🛋️ أثاث
+  { kind: "category", category: "furniture", text: "🛋️ اسم قطعة أثاث!", timerSec: 10 },
+  { kind: "category", category: "furniture", text: "🪑 شيء في البيت من الأثاث!", timerSec: 10 },
+  // 🫀 جسم
+  { kind: "category", category: "body_parts", text: "🫀 اسم عضو في جسم الإنسان!", timerSec: 9 },
+  { kind: "category", category: "body_parts", text: "💪 جزء من جسم الإنسان!", timerSec: 9 },
+  // 📚 مواد
+  { kind: "category", category: "school_subjects", text: "📚 اسم مادة دراسية!", timerSec: 9 },
+  { kind: "category", category: "school_subjects", text: "🎓 مادة تدرسها في المدرسة!", timerSec: 9 },
+  // 🗣️ لغات
+  { kind: "category", category: "languages", text: "🗣️ اسم لغة!", timerSec: 10 },
+  { kind: "category", category: "languages", text: "🌐 لغة من لغات العالم!", timerSec: 10 },
+  // 🚗 مركبات
+  { kind: "category", category: "vehicles", text: "🚗 اسم مركبة أو وسيلة نقل!", timerSec: 10 },
+  { kind: "category", category: "vehicles", text: "✈️ نوع مواصلات!", timerSec: 9 },
+  { kind: "category", category: "vehicles", text: "🚌 شيء يمشي أو يطير!", timerSec: 9 },
+  // 🏎️ ماركات سيارات
+  { kind: "category", category: "car_brands", text: "🏎️ اسم ماركة سيارة!", timerSec: 10 },
+  { kind: "category", category: "car_brands", text: "🚘 شركة سيارات مشهورة!", timerSec: 10 },
+  // 🌊 أنهار
+  { kind: "category", category: "rivers", text: "🌊 اسم نهر في العالم!", timerSec: 12 },
+  { kind: "category", category: "rivers", text: "💧 نهر من أنهار الدنيا!", timerSec: 12 },
+  // 🌊 بحار
+  { kind: "category", category: "seas_oceans", text: "🌊 اسم بحر أو محيط!", timerSec: 12 },
+  { kind: "category", category: "seas_oceans", text: "⛵ محيط أو خليج!", timerSec: 11 },
+  // 🪐 كواكب
+  { kind: "category", category: "planets", text: "🪐 اسم كوكب أو جرم فلكي!", timerSec: 11 },
+  { kind: "category", category: "planets", text: "🌙 كوكب أو نجم أو قمر!", timerSec: 11 },
+  // 🎵 موسيقى
+  { kind: "category", category: "instruments", text: "🎵 اسم آلة موسيقية!", timerSec: 10 },
+  { kind: "category", category: "instruments", text: "🎸 آلة موسيقية!", timerSec: 10 },
+  // 🔧 أدوات
+  { kind: "category", category: "tools", text: "🔧 اسم أداة أو عدة!", timerSec: 10 },
+  { kind: "category", category: "tools", text: "🪛 أداة تستخدمها في الشغل!", timerSec: 10 },
+  // 👦 أسماء
+  { kind: "category", category: "arabic_names_m", text: "👦 اسم ولد عربي!", timerSec: 9 },
+  { kind: "category", category: "arabic_names_m", text: "🧑 اسم رجل!", timerSec: 9 },
+  { kind: "category", category: "arabic_names_f", text: "👧 اسم بنت عربي!", timerSec: 9 },
+  { kind: "category", category: "arabic_names_f", text: "👩 اسم امرأة عربي!", timerSec: 9 },
+];
+
+// ─── أنواع جديدة ─────────────────────────────────────────────────────────────
+
+const LONG_WORD: CircleChallenge[] = [
+  { kind: "long_word", minLen: 6, text: "📏 اكتب كلمة عربية من 6 حروف أو أكثر!", timerSec: 13 },
+  { kind: "long_word", minLen: 6, text: "📏 كلمة طويلة — 6 حروف فأكثر!", timerSec: 13 },
+  { kind: "long_word", minLen: 7, text: "📏 كلمة من 7 حروف أو أكثر — غيرها تطلع!", timerSec: 15 },
+  { kind: "long_word", minLen: 5, text: "📏 كلمة لا تقل عن 5 حروف!", timerSec: 12 },
+  { kind: "long_word", minLen: 8, text: "📏 كلمة من 8 حروف أو أكثر — تحدي!", timerSec: 18 },
+];
+
+const SHORT_WORD: CircleChallenge[] = [
+  { kind: "short_word", maxLen: 3, text: "🔡 اكتب كلمة عربية من 3 حروف أو أقل!", timerSec: 11 },
+  { kind: "short_word", maxLen: 3, text: "🔡 كلمة قصيرة — 3 حروف بالكثير!", timerSec: 11 },
+  { kind: "short_word", maxLen: 4, text: "🔡 كلمة من 4 حروف أو أقل!", timerSec: 10 },
+  { kind: "short_word", maxLen: 2, text: "🔡 كلمتين حروف فقط! (أقصر ما تقدر)", timerSec: 13 },
+];
+
+const CONTAINS: CircleChallenge[] = [
+  { kind: "contains", letter: "م", text: '🔍 كلمة تحتوي حرف "م" في أي مكان!', timerSec: 10 },
+  { kind: "contains", letter: "ا", text: '🔍 كلمة تحتوي حرف "ا" في أي مكان!', timerSec: 8 },
+  { kind: "contains", letter: "ر", text: '🔍 كلمة تحتوي حرف "ر"!', timerSec: 9 },
+  { kind: "contains", letter: "ل", text: '🔍 كلمة تحتوي حرف "ل"!', timerSec: 8 },
+  { kind: "contains", letter: "ن", text: '🔍 كلمة تحتوي حرف "ن"!', timerSec: 9 },
+  { kind: "contains", letter: "ش", text: '🔍 كلمة فيها حرف "ش"!', timerSec: 11 },
+  { kind: "contains", letter: "ق", text: '🔍 كلمة فيها حرف "ق"!', timerSec: 11 },
+  { kind: "contains", letter: "ع", text: '🔍 كلمة فيها حرف "ع"!', timerSec: 10 },
+  { kind: "contains", letter: "خ", text: '🔍 كلمة تحتوي حرف "خ"!', timerSec: 11 },
+  { kind: "contains", letter: "ز", text: '🔍 كلمة تحتوي حرف "ز"!', timerSec: 11 },
 ];
 
 function pickChallenge(round: number, used: Set<string>): CircleChallenge {
-  // Build a weighted pool based on round number
   let pool: CircleChallenge[];
+
   if (round === 1) {
-    // Round 1: easy — race + simple categories
-    pool = [...RACE, ...CATEGORY.filter(c =>
-      ["animals","fruits","colors","jobs","food","sports","clothes","vehicles"].includes(c.category ?? "")
-    ).slice(0, 12)];
+    // جولة 1: سهل — سباق + فئات بسيطة
+    pool = [
+      ...RACE,
+      ...CATEGORY.filter(c =>
+        ["animals","fruits","colors","jobs","food","sports","clothes","vehicles"].includes(c.category ?? "")
+      ),
+      ...CONTAINS.slice(0, 3),
+      ...SHORT_WORD.slice(0, 2),
+    ];
   } else if (round <= 3) {
-    // Rounds 2-3: categories + starts (easy letters)
-    pool = [...CATEGORY, ...STARTS.slice(0, 15)];
+    // جولات 2-3: تنوع أكثر
+    pool = [...RACE, ...CATEGORY, ...STARTS.slice(0, 15), ...CONTAINS, ...SHORT_WORD];
   } else if (round <= 6) {
-    // Rounds 4-6: everything mixed
-    pool = [...CATEGORY, ...STARTS, ...MATH.slice(0, 16), ...NO_LETTER.slice(0, 8)];
+    // جولات 4-6: تصعيب تدريجي
+    pool = [...CATEGORY, ...STARTS, ...MATH.slice(0, 16), ...NO_LETTER.slice(0, 8),
+            ...CONTAINS, ...LONG_WORD.slice(0, 3), ...SHORT_WORD];
   } else {
-    // Round 7+: harder — all types, more math and no_letter
-    pool = [...CATEGORY, ...STARTS, ...MATH, ...NO_LETTER];
+    // جولة 7+: الكل مكشوف
+    pool = [...CATEGORY, ...STARTS, ...MATH, ...NO_LETTER, ...CONTAINS, ...LONG_WORD, ...SHORT_WORD];
   }
 
   const fresh   = pool.filter(c => !used.has(c.text));
-  const choices = fresh.length > 0 ? fresh : pool; // fallback: reuse if all used
+  const choices = fresh.length > 0 ? fresh : pool;
   const pick    = choices[Math.floor(Math.random() * choices.length)];
   used.add(pick.text);
   return pick;
@@ -650,7 +716,12 @@ export function handleCircleText(
   const s = gameStates.get(chatId);
   if (!s || s.type !== "circle" || s.phase !== "playing" || !s.challenge) return;
   if (!s.players.has(uid)) return;
-  if (s.responses.has(uid)) return; // one answer per round per player
+  if (s.responses.has(uid)) {
+    // Allow update ONLY if previous answer was wrong — so player can correct themselves
+    const prev = s.responses.get(uid)!;
+    if (validateAnswer(s.challenge, prev.text)) return; // already correct, keep first correct answer
+    // Previous was wrong → overwrite with new attempt, update timestamp
+  }
   s.responses.set(uid, { text: text.trim(), timestamp });
 }
 
@@ -719,10 +790,13 @@ async function sendChallenge(bot: Telegraf, chatId: number): Promise<void> {
 
   // Challenge type hint
   let hint = "";
-  if (challenge.kind === "math")      hint = "📐 <b>حساب</b> — اكتب الرقم بالأرقام فقط";
-  if (challenge.kind === "starts")    hint = "✍️ <b>كلمة بحرف معين</b> — أول كلمة صح تنجو";
-  if (challenge.kind === "no_letter") hint = "🚫 <b>حرف محظور</b> — إجابة تحتويه = إقصاء فوري";
-  if (challenge.kind === "race")      hint = "⚡ <b>سباق كلمات</b> — أسرع كلمة عربية تنجو";
+  if (challenge.kind === "math")       hint = "📐 <b>حساب</b> — اكتب الرقم بالأرقام فقط";
+  if (challenge.kind === "starts")     hint = "✍️ <b>كلمة بحرف</b> — أول كلمة صح تنجو";
+  if (challenge.kind === "no_letter")  hint = "🚫 <b>حرف محظور</b> — إجابة تحتويه = إقصاء";
+  if (challenge.kind === "race")       hint = "⚡ <b>سباق</b> — أسرع كلمة عربية تنجو";
+  if (challenge.kind === "contains")   hint = `🔍 <b>كلمة تحتوي الحرف</b> — بدونه تطلع`;
+  if (challenge.kind === "long_word")  hint = `📏 <b>طول الكلمة مهم</b> — أقل من ${challenge.minLen ?? 5} حروف تطلع`;
+  if (challenge.kind === "short_word") hint = `🔡 <b>كلمة قصيرة</b> — أكثر من ${challenge.maxLen ?? 3} حروف تطلع`;
   if (challenge.kind === "category") {
     const cat = challenge.category ?? "";
     hint = `🎯 <b>الفئة: ${CAT_LABEL[cat] ?? cat}</b> — كلمة خارج الفئة = إقصاء فوري`;
