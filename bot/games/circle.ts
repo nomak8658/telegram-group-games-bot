@@ -30,12 +30,24 @@ function isArabic(text: string): boolean {
 
 const WORDS: Record<string, string[]> = {
   animals: [
-    "أسد","نمر","فيل","زرافة","قرد","ثعلب","ذئب","دب","حصان","بقرة","شاة","تيس","قط","كلب","أرنب",
-    "سمكة","طير","حمام","نسر","صقر","غراب","بط","دجاج","ديك","بقرة","جمل","ناقة","حمار","بغل",
-    "خروف","ماعز","خنزير","أفعى","تمساح","ضفدع","سلحفاة","عقرب","نحلة","فراشة","صرصور","بعوضة",
-    "دلفين","حوت","قرش","أخطبوط","كركدن","زبرا","جاموس","غزال","أيل","وعل","ثعبان","كوبرا","برتقالة",
-    "ببغاء","طاووس","فلامينغو","بجعة","لقلق","خفاش","قنفذ","سنجاب","وزغ","حرباء","سمندل","عصفور",
-    "شاهين","كركي","بلبل","هدهد","أبوقردان","حلزون","عقاب","رخمة","مارمول","وروار","قنبيط",
+    // أليفة وشائعة جداً
+    "قط","كلب","حصان","بقرة","شاة","خروف","ماعز","أرنب","ببغاء","حمام","دجاج","ديك","بط","إوزة",
+    "جمل","ناقة","حمار","بغل","جاموس","فأر",
+    // كبيرة وشهيرة
+    "أسد","نمر","فيل","زرافة","قرد","ثعلب","ذئب","دب","كركدن","فهد","شمبانزي","غوريلا","حصان",
+    "زبرا","غزال","وعل","أيل","نمس","ظبي","لاما","مها","يرقان","كنغر","ألباكا","ياك",
+    // طيور
+    "نسر","صقر","طاووس","بجعة","لقلق","فلامينغو","بومة","هدهد","بلبل","عصفور","غراب",
+    "شاهين","عندليب","طوقان","حجل","رخمة","عقاب","سنونو","يمامة","حجل","بطريق","كركي",
+    // بحرية
+    "دلفين","حوت","قرش","أخطبوط","حبار","نجم البحر","فقمة","أسد البحر","سلطعون","كركند",
+    "سمكة","تونة","سلطعون","حصان البحر","قنديل البحر",
+    // زواحف وبرمائيات
+    "تمساح","أفعى","ثعبان","كوبرا","سحلية","حرباء","سلحفاة","ضفدع","ضب","ورل","وزغ","برص",
+    // حشرات وأخرى
+    "نحلة","فراشة","نمل","صرصور","عقرب","بعوضة","ذبابة","دودة","خنفساء","حلزون","عنكبوت",
+    // إضافية شائعة في العربية
+    "خفاش","قنفذ","سنجاب","ضبع","وشق","غرير","دلق","ابن عرس","راكون","بابون","قرد المكاك",
   ],
   fruits: [
     "تفاح","موز","برتقال","عنب","بطيخ","فراولة","مانجو","خوخ","كمثرى","تين","رمان","ليمون","بطاطا",
@@ -93,8 +105,18 @@ function normalize(t: string): string {
 }
 
 function inList(answer: string, list: string[]): boolean {
-  const a = normalize(answer);
-  return list.some(w => normalize(w) === a || normalize(w).includes(a) || a.includes(normalize(w)));
+  const a = normalize(answer.trim().split(/\s+/)[0]); // first word only
+  if (a.length < 2) return false;
+  return list.some(w => {
+    const nw = normalize(w);
+    // Exact match (after normalize)
+    if (nw === a) return true;
+    // Answer is a prefix of a list word (min 3 chars match) — handles "تمساح" vs "تمس"
+    if (a.length >= 3 && nw.startsWith(a) && a.length >= nw.length - 2) return true;
+    // List word is the answer (user wrote full correct word)
+    if (a.length >= 4 && a.startsWith(nw)) return true;
+    return false;
+  });
 }
 
 function validateAnswer(challenge: CircleChallenge, answer: string): boolean {
@@ -394,12 +416,20 @@ async function sendChallenge(bot: Telegraf, chatId: number): Promise<void> {
   if (s.round >= 7) header += `  🔥`;
 
   // Challenge type hint
+  const catLabel: Record<string, string> = {
+    animals: "🐾 حيوانات", fruits: "🍓 فواكه", colors: "🎨 ألوان",
+    cities_sa: "🏙️ مدن سعودية", countries_ar: "🌍 دول عربية",
+    countries_asia: "🌏 دول آسيا", jobs: "💼 مهن", food: "🍽️ أكل شعبي", rivers: "🌊 أنهار",
+  };
   let hint = "";
   if (challenge.kind === "math")      hint = "📐 <b>حساب</b> — اكتب الرقم بالأرقام فقط";
   if (challenge.kind === "starts")    hint = "✍️ <b>كلمة بحرف معين</b> — أول كلمة صح تنجو";
   if (challenge.kind === "no_letter") hint = "🚫 <b>حرف محظور</b> — إجابة تحتويه = إقصاء فوري";
   if (challenge.kind === "race")      hint = "⚡ <b>سباق كلمات</b> — أسرع كلمة عربية تنجو";
-  if (challenge.kind === "category")  hint = "🎯 <b>الكلمة الغلط تطلعك</b> — التحقق تلقائي";
+  if (challenge.kind === "category") {
+    const cat = challenge.category ?? "";
+    hint = `🎯 <b>الفئة: ${catLabel[cat] ?? cat}</b> — كلمة خارج الفئة = إقصاء فوري`;
+  }
 
   const msg = await bot.telegram.sendMessage(
     chatId,
@@ -488,14 +518,15 @@ async function resolveChallenge(bot: Telegraf, chatId: number): Promise<void> {
   if (challenge.kind === "math" && challenge.expectedNum !== undefined) {
     result += `\n💡 الجواب الصح: <b>${challenge.expectedNum}</b>`;
   }
-  if (challenge.kind === "category" && wrong.length > 0) {
-    const catLabel: Record<string, string> = {
-      animals: "حيوانات", fruits: "فواكه", colors: "ألوان",
-      cities_sa: "مدن سعودية", countries_ar: "دول عربية",
-      countries_asia: "دول آسيا", jobs: "مهن", food: "أكل شعبي", rivers: "أنهار",
+  if (challenge.kind === "category") {
+    const catLabelR: Record<string, string> = {
+      animals: "🐾 حيوانات", fruits: "🍓 فواكه", colors: "🎨 ألوان",
+      cities_sa: "🏙️ مدن سعودية", countries_ar: "🌍 دول عربية",
+      countries_asia: "🌏 دول آسيا", jobs: "💼 مهن", food: "🍽️ أكل شعبي", rivers: "🌊 أنهار",
     };
     const cat = challenge.category ?? "";
-    result += `\n💡 التحدي: <b>${catLabel[cat] ?? cat}</b> فقط — كلمة خارج الفئة = خطأ`;
+    if (wrong.length > 0)
+      result += `\n💡 المقبول فقط: <b>${catLabelR[cat] ?? cat}</b> — كلمة خارج الفئة = خطأ`;
   }
 
   if (elimCandidates.length === 0) {
