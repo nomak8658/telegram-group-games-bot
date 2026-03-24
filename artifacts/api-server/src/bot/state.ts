@@ -152,7 +152,7 @@ export interface CircleChallenge {
 
 export interface CircleState {
   type: "circle";
-  phase: "joining" | "playing" | "done";
+  phase: "joining" | "selecting" | "playing" | "done";
   players: Map<number, CirclePlayer>;
   eliminated: CirclePlayer[];
   hostId: number;
@@ -161,8 +161,14 @@ export interface CircleState {
   responses: Map<number, { text: string; timestamp: number }>;
   usedChallenges: Set<string>;
   doubleElim: boolean;
+  // Multi-round session
+  totalRounds: number;
+  completedRounds: number;
+  roundWins: Map<number, number>;
+  allPlayers: Map<number, CirclePlayer>;
   challengeMsgId?: number;
   joinMsgId?: number;
+  selectMsgId?: number;
   joinTimer?: ReturnType<typeof setTimeout>;
   joinWarnTimer?: ReturnType<typeof setTimeout>;
   challengeTimer?: ReturnType<typeof setTimeout>;
