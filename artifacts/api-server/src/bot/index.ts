@@ -31,6 +31,11 @@ import {
 import {
   startStopwatch, handleStopwatchJoin, handleStopwatchForceStart, handleStopwatchPress,
 } from "./games/stopwatch.js";
+import {
+  startUno, handleUnoJoin, handleUnoStart, handleUnoPlay,
+  handleUnoDraw, handleUnoPass, handleUnoColor, handleUnoUno,
+} from "./games/uno.js";
+import type { UnoCard } from "./state.js";
 import { generateTopCard } from "./topCard.js";
 
 function menuMsg() {
@@ -42,7 +47,8 @@ function menuMsg() {
     `🫥 <b>برا السالفة</b>\n<i>شخص ما يعرف الموضوع — الكل يلمّح وأنت تكتشف!</i>\n\n` +
     `🔴 <b>الدائرة القاتلة</b>\n<i>تحديات سريعة — الأبطأ والغلطان يطلع، آخر واحد يبقى يفوز!</i>\n\n` +
     `💣 <b>القنبلة المتنقلة</b>\n<i>قنبلة تنتقل بين اللاعبين — واللي تنفجر عليه يطلع!</i>\n\n` +
-    `🔌 <b>قنبلة الثواني الأخيرة</b>\n<i>فريقان — 4 أسلاك مجهولة — سلك يُفكّك وآخر يُفجّر! توتر حقيقي</i>`
+    `⏰ <b>سلك الموت الموقوت</b>\n<i>عداد تنازلي — اضغط أقرب ما تقدر من الصفر دون أن تصله!</i>\n\n` +
+    `🃏 <b>أونو</b>\n<i>تخلص من أوراقك أول — لكن قُل UNO قبل الورقة الأخيرة!</i>`
   );
 }
 
@@ -55,6 +61,7 @@ function menuKeyboard(chatId: number) {
     [Markup.button.callback("🔴  الدائرة القاتلة",        `menu:circle:${chatId}`)],
     [Markup.button.callback("💣  القنبلة المتنقلة",       `menu:bomb:${chatId}`)],
     [Markup.button.callback("⏰  سلك الموت الموقوت",       `menu:sw:${chatId}`)],
+    [Markup.button.callback("🃏  أونو",                    `menu:uno:${chatId}`)],
   ]);
 }
 
@@ -258,6 +265,12 @@ export async function launchBot(): Promise<void> {
     startStopwatch(bot, ctx.chat.id, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
   });
 
+  bot.command(["uno", "اونو", "أونو"], (ctx) => {
+    if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
+    const f = ctx.from;
+    startUno(bot, ctx.chat.id, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
+  });
+
   bot.command("menvsmen", (ctx) => {
     if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
     const chatId = ctx.chat.id;
@@ -382,6 +395,17 @@ export async function launchBot(): Promise<void> {
         ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
         const f = ctx.from;
         startStopwatch(bot, chatId, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
+        return;
+      }
+
+      if (data.startsWith("menu:uno:")) {
+        const chatId = parseInt(data.slice("menu:uno:".length), 10);
+        if (isNaN(chatId)) return;
+        if (gameStates.has(chatId)) { await ctx.answerCbQuery("⚠️ في لعبة شغالة!").catch(() => {}); return; }
+        await ctx.answerCbQuery("🃏").catch(() => {});
+        ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
+        const fu = ctx.from;
+        startUno(bot, chatId, fu.id, fu.username, fu.first_name ?? "", fu.last_name ?? "");
         return;
       }
 
@@ -538,6 +562,40 @@ export async function launchBot(): Promise<void> {
       if (data.startsWith("sw:press:")) {
         const chatId = parseInt(data.slice("sw:press:".length), 10);
         if (!isNaN(chatId)) { await handleStopwatchPress(bot, ctx, chatId); return; }
+      }
+
+      // ── أونو ──────────────────────────────────────────────────────────────────
+      if (data.startsWith("uno:join:")) {
+        const chatId = parseInt(data.slice("uno:join:".length), 10);
+        if (!isNaN(chatId)) { await handleUnoJoin(bot, ctx, chatId); return; }
+      }
+      if (data.startsWith("uno:start:")) {
+        const chatId = parseInt(data.slice("uno:start:".length), 10);
+        if (!isNaN(chatId)) { await handleUnoStart(bot, ctx, chatId); return; }
+      }
+      if (data.startsWith("uno:play:")) {
+        const parts   = data.split(":");
+        const chatId  = parseInt(parts[2], 10);
+        const handIdx = parseInt(parts[3], 10);
+        if (!isNaN(chatId) && !isNaN(handIdx)) { await handleUnoPlay(bot, ctx, chatId, handIdx); return; }
+      }
+      if (data.startsWith("uno:draw:")) {
+        const chatId = parseInt(data.slice("uno:draw:".length), 10);
+        if (!isNaN(chatId)) { await handleUnoDraw(bot, ctx, chatId); return; }
+      }
+      if (data.startsWith("uno:pass:")) {
+        const chatId = parseInt(data.slice("uno:pass:".length), 10);
+        if (!isNaN(chatId)) { await handleUnoPass(bot, ctx, chatId); return; }
+      }
+      if (data.startsWith("uno:color:")) {
+        const parts  = data.split(":");
+        const chatId = parseInt(parts[2], 10);
+        const color  = parts[3] as UnoCard["color"];
+        if (!isNaN(chatId) && color) { await handleUnoColor(bot, ctx, chatId, color); return; }
+      }
+      if (data.startsWith("uno:uno:")) {
+        const chatId = parseInt(data.slice("uno:uno:".length), 10);
+        if (!isNaN(chatId)) { await handleUnoUno(bot, ctx, chatId); return; }
       }
 
       await ctx.answerCbQuery().catch(() => {});
