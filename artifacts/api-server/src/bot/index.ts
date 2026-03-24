@@ -23,7 +23,8 @@ import {
   handleOutsiderSkipVote,
 } from "./games/outsider.js";
 import {
-  startCircle, handleCircleJoin, handleCircleForceStart, handleCircleText,
+  startCircle, handleCircleJoin, handleCircleForceStart,
+  handleCircleSetRounds, handleCircleText,
 } from "./games/circle.js";
 import {
   startBomb, handleBombJoin, handleBombForceStart, handleBombPass,
@@ -555,6 +556,12 @@ export async function launchBot(): Promise<void> {
       if (data.startsWith("circle:fstart:")) {
         const chatId = parseInt(data.slice("circle:fstart:".length), 10);
         if (!isNaN(chatId)) { await handleCircleForceStart(bot, ctx, chatId); return; }
+      }
+      if (data.startsWith("circle:setn:")) {
+        const parts  = data.split(":");            // ["circle","setn","n","chatId"]
+        const n      = parseInt(parts[2], 10);
+        const chatId = parseInt(parts[3], 10);
+        if (!isNaN(n) && !isNaN(chatId)) { await handleCircleSetRounds(bot, ctx, chatId, n); return; }
       }
 
       // ── القنبلة المتنقلة ───────────────────────────────────────────────────────
