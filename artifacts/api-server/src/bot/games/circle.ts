@@ -276,6 +276,10 @@ export async function startCircle(
     responses: new Map(),
     usedChallenges: new Set(),
     doubleElim: false,
+    totalRounds: 1,
+    completedRounds: 0,
+    roundWins: new Map(),
+    allPlayers: new Map(),
   };
 
   s.players.set(hostId, {
@@ -344,7 +348,61 @@ export async function handleCircleForceStart(bot: Telegraf, ctx: Context, chatId
     await ctx.answerCbQuery(`⚠️ ما يكفي لاعبين! (${s.players.size}/${MIN_PLAYERS})`).catch(() => {}); return;
   }
 
-  await ctx.answerCbQuery("🔴 تبدأ!").catch(() => {});
+  await ctx.answerCbQuery("🔢 اختر عدد الراوندات!").catch(() => {});
+  s.phase = "selecting";
+
+  // Build 2-row keyboard: 1-5 top, 6-10 bottom
+  const row1 = [1,2,3,4,5].map(n =>
+    Markup.button.callback(`${n}`, `circle:setn:${n}:${chatId}`)
+  );
+  const row2 = [6,7,8,9,10].map(n =>
+    Markup.button.callback(`${n}`, `circle:setn:${n}:${chatId}`)
+  );
+
+  const msg = await bot.telegram.sendMessage(
+    chatId,
+    `🔢 <b>كم راوند تبون تلعبون؟</b>\n\n` +
+    `كل راوند = لعبة كاملة من الدائرة القاتلة\n` +
+    `الفائز بكل راوند يحصل نقطة — في النهاية البطل الأكبر يُعلن!\n\n` +
+    `👥 اللاعبون: <b>${s.players.size}</b>\n\n` +
+    `<i>اختر العدد أدناه:</i>`,
+    {
+      parse_mode: "HTML",
+      ...Markup.inlineKeyboard([row1, row2]),
+    }
+  ).catch(() => null);
+
+  if (msg) s.selectMsgId = msg.message_id;
+}
+
+export async function handleCircleSetRounds(bot: Telegraf, ctx: Context, chatId: number, n: number): Promise<void> {
+  const from = ctx.from!;
+  const s    = gameStates.get(chatId);
+
+  if (!s || s.type !== "circle" || s.phase !== "selecting") {
+    await ctx.answerCbQuery("❌ ما في اختيار متاح").catch(() => {}); return;
+  }
+  if (from.id !== s.hostId) {
+    await ctx.answerCbQuery("⛔ فقط من أنشأ اللعبة يقدر يختار!").catch(() => {}); return;
+  }
+
+  s.totalRounds = n;
+  await ctx.answerCbQuery(`✅ ${n} راوند — يلا نبدأ!`).catch(() => {});
+
+  // Remove selection buttons
+  if (s.selectMsgId) {
+    bot.telegram.editMessageReplyMarkup(chatId, s.selectMsgId, undefined, { inline_keyboard: [] }).catch(() => {});
+  }
+
+  await bot.telegram.sendMessage(
+    chatId,
+    `✅ <b>تم! ${n} راوند${n > 1 ? "ات" : ""}</b>\n\n` +
+    `👥 اللاعبون: ${[...s.players.values()].map(p => esc(dnC(p))).join("، ")}\n\n` +
+    `<i>الراوند الأول يبدأ خلال ثوانٍ...</i>`,
+    { parse_mode: "HTML" }
+  ).catch(() => {});
+
+  s.phase = "joining"; // reset to allow launchCircle to proceed
   launchCircle(bot, chatId);
 }
 
@@ -380,14 +438,24 @@ async function launchCircle(bot: Telegraf, chatId: number): Promise<void> {
   if (s.joinTimer)     clearTimeout(s.joinTimer);
   if (s.joinWarnTimer) clearTimeout(s.joinWarnTimer);
 
+  // Save the full player list so we can reset between rounds
+  s.allPlayers = new Map(s.players);
+
   s.phase = "playing";
+  s.round = 0;
+  s.eliminated = [];
+  s.responses = new Map();
+  s.usedChallenges = new Set();
+
+  const isMulti = s.totalRounds > 1;
+  const roundLabel = isMulti ? `  •  الراوند ${s.completedRounds + 1} من ${s.totalRounds}` : "";
 
   await bot.telegram.sendMessage(
     chatId,
-    `🔴 <b>الدائرة القاتلة — انطلقت!</b>\n\n` +
+    `🔴 <b>الدائرة القاتلة — انطلقت!${roundLabel}</b>\n\n` +
     `👥 <b>اللاعبون (${s.players.size}):</b>\n${playerList(s)}\n\n` +
     `اكتبوا إجاباتكم في القروب عند ظهور كل تحدي\n` +
-    `آخر واحد يبقى = الفائز\n\n` +
+    `آخر واحد يبقى = فائز هذا الراوند\n\n` +
     `<i>الجولة الأولى خلال ثوانٍ...</i>`,
     { parse_mode: "HTML" }
   ).catch(() => {});
@@ -472,7 +540,7 @@ async function resolveChallenge(bot: Telegraf, chatId: number): Promise<void> {
     if (!r) {
       noResp.push(uid);
     } else if (validateAnswer(challenge, r.text)) {
-      correct.push({ uid, ts: r.ts });
+      correct.push({ uid, ts: r.timestamp });
     } else {
       wrong.push(uid);
     }
@@ -584,34 +652,110 @@ async function eliminatePlayers(bot: Telegraf, chatId: number, uids: number[]): 
   setTimeout(() => sendChallenge(bot, chatId), BETWEEN_ROUNDS_MS);
 }
 
+function buildScoreboard(s: CircleState): string {
+  const entries = [...s.allPlayers.values()].map(p => ({
+    p,
+    wins: s.roundWins.get(p.id) ?? 0,
+  })).sort((a, b) => b.wins - a.wins);
+
+  const medals = ["🥇","🥈","🥉"];
+  return entries.map((e, i) => {
+    const m = medals[i] ?? "•";
+    const bar = "⭐".repeat(e.wins) || "—";
+    return `${m} ${esc(dnC(e.p))}: ${bar} (${e.wins} فوز)`;
+  }).join("\n");
+}
+
 async function endCircle(bot: Telegraf, chatId: number, winner: CirclePlayer): Promise<void> {
   const s = gameStates.get(chatId);
   if (!s || s.type !== "circle") return;
 
-  s.phase = "done";
+  // Record this round's win
+  s.roundWins.set(winner.id, (s.roundWins.get(winner.id) ?? 0) + 1);
+  s.completedRounds++;
 
-  const all = [...s.players.values(), ...s.eliminated];
-  for (const p of all) {
-    if (p.id === winner.id) recordWin(chatId, toP(p));
-    else recordGame(chatId, [toP(p)]);
-  }
-
+  // Show winner card for this round
   try {
     const buf = await generateCircleWinnerCard(dnC(winner));
+    const roundLabel = s.totalRounds > 1 ? `الراوند ${s.completedRounds}` : "الدائرة القاتلة";
     await bot.telegram.sendPhoto(chatId, { source: buf }, {
-      caption:    `👑 <b>${esc(dnC(winner))}</b> هو الناجي الوحيد من الدائرة القاتلة!\nمبروك!`,
+      caption: `👑 <b>${esc(dnC(winner))}</b> هو الناجي الوحيد من ${roundLabel}!\nمبروك!`,
       parse_mode: "HTML",
     });
   } catch (e) {
     logger.warn({ err: e }, "circle winner card failed");
     await bot.telegram.sendMessage(
       chatId,
-      `🏆 <b>الفائز:</b> ${esc(dnC(winner))}\nناجي من الدائرة القاتلة! مبروك!`,
+      `🏆 <b>فائز الراوند ${s.completedRounds}:</b> ${esc(dnC(winner))} 🎉`,
       { parse_mode: "HTML" }
     ).catch(() => {});
   }
 
-  clearGame(chatId);
+  // ── All rounds done? ──────────────────────────────────────────────────────
+  if (s.completedRounds >= s.totalRounds) {
+    s.phase = "done";
+
+    // Record leaderboard wins/games for all players
+    const all = [...s.allPlayers.values()];
+    for (const p of all) {
+      if ((s.roundWins.get(p.id) ?? 0) > 0) recordWin(chatId, toP(p));
+      else recordGame(chatId, [toP(p)]);
+    }
+
+    // Find overall champion (most round wins; tie → earlier alphabetically)
+    const sorted = [...s.allPlayers.values()]
+      .sort((a, b) => (s.roundWins.get(b.id) ?? 0) - (s.roundWins.get(a.id) ?? 0));
+    const champion = sorted[0];
+
+    // Build final scoreboard
+    const scoreboard = buildScoreboard(s);
+
+    if (s.totalRounds > 1) {
+      await bot.telegram.sendMessage(
+        chatId,
+        `🏆 <b>النتيجة النهائية — ${s.totalRounds} راوندات</b>\n\n` +
+        `${scoreboard}\n\n` +
+        `👑 <b>البطل الأكبر: ${esc(dnC(champion))}!</b> مبروووك!`,
+        { parse_mode: "HTML" }
+      ).catch(() => {});
+    }
+
+    clearGame(chatId);
+    return;
+  }
+
+  // ── More rounds remain — reset and start next ─────────────────────────────
+  const next  = s.completedRounds + 1;
+  const scoreboard = buildScoreboard(s);
+
+  await bot.telegram.sendMessage(
+    chatId,
+    `📊 <b>نتيجة الراوند ${s.completedRounds} من ${s.totalRounds}</b>\n\n` +
+    `${scoreboard}\n\n` +
+    `<i>الراوند ${next} يبدأ خلال ثوانٍ...</i>`,
+    { parse_mode: "HTML" }
+  ).catch(() => {});
+
+  // Reset for next round: restore all players
+  s.players     = new Map(s.allPlayers);
+  s.eliminated  = [];
+  s.round       = 0;
+  s.challenge   = null;
+  s.responses   = new Map();
+  s.usedChallenges = new Set();
+  s.doubleElim  = false;
+  s.phase       = "playing";
+
+  setTimeout(() => {
+    bot.telegram.sendMessage(
+      chatId,
+      `🔴 <b>الدائرة القاتلة — الراوند ${next} من ${s.totalRounds}</b>\n\n` +
+      `👥 <b>اللاعبون (${s.players.size}):</b>\n${playerList(s)}\n\n` +
+      `<i>الجولة الأولى خلال ثوانٍ...</i>`,
+      { parse_mode: "HTML" }
+    ).catch(() => {});
+    setTimeout(() => sendChallenge(bot, chatId), BETWEEN_ROUNDS_MS);
+  }, 5_000);
 }
 
 function shuffle<T>(arr: T[]): void {
