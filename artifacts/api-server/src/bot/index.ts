@@ -34,6 +34,7 @@ import {
 import {
   startUno, handleUnoJoin, handleUnoStart, handleUnoPlay,
   handleUnoDraw, handleUnoPass, handleUnoColor, handleUnoUno,
+  registerUnoDM,
 } from "./games/uno.js";
 import type { UnoCard } from "./state.js";
 import { generateTopCard } from "./topCard.js";
@@ -108,7 +109,7 @@ export async function launchBot(): Promise<void> {
   }
 
   // /start — deep links
-  bot.start((ctx) => {
+  bot.start(async (ctx) => {
     const payload = ctx.startPayload;
     const uid = ctx.from.id;
     const uname = ctx.from.username;
@@ -156,6 +157,28 @@ export async function launchBot(): Promise<void> {
               { parse_mode: "HTML" }
             ).catch(() => {});
           }
+        }
+      }
+      return;
+    }
+
+    if (payload?.startsWith("uno_")) {
+      const groupChatId = parseInt(payload.slice(4), 10);
+      if (!isNaN(groupChatId)) {
+        const s = gameStates.get(groupChatId);
+        if (s?.type === "uno") {
+          const player = s.players.find(p => p.id === uid);
+          if (player) {
+            ctx.reply(
+              `🃏 <b>أونو</b> — مرحباً ${esc(player.firstName || (uname ? `@${uname}` : String(uid)))}!\n\nتم تفعيل الخاص ✅\nسوف تصلك أوراقك في دورك مباشرة هنا.`,
+              { parse_mode: "HTML" }
+            ).catch(() => {});
+            await registerUnoDM(bot, groupChatId, uid, ctx.chat.id);
+          } else {
+            ctx.reply("⚠️ أنت مو مسجل في هذه اللعبة!").catch(() => {});
+          }
+        } else {
+          ctx.reply("⚠️ اللعبة انتهت أو لم تبدأ بعد.").catch(() => {});
         }
       }
       return;
@@ -268,7 +291,7 @@ export async function launchBot(): Promise<void> {
   bot.command(["uno", "اونو", "أونو"], (ctx) => {
     if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
     const f = ctx.from;
-    startUno(bot, ctx.chat.id, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
+    startUno(bot, ctx.chat.id, f.id, f.username, f.first_name ?? "", f.last_name ?? "", botUsername);
   });
 
   bot.command("menvsmen", (ctx) => {
@@ -405,7 +428,7 @@ export async function launchBot(): Promise<void> {
         await ctx.answerCbQuery("🃏").catch(() => {});
         ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
         const fu = ctx.from;
-        startUno(bot, chatId, fu.id, fu.username, fu.first_name ?? "", fu.last_name ?? "");
+        startUno(bot, chatId, fu.id, fu.username, fu.first_name ?? "", fu.last_name ?? "", botUsername);
         return;
       }
 
