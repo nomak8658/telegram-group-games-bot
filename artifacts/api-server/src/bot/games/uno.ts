@@ -9,23 +9,19 @@ import { logger } from "../../lib/logger.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const MIN_PLAYERS    = 2;
-const MAX_PLAYERS    = 8;
-const HAND_SIZE      = 7;
-const TURN_MS        = 35_000;
-const UNO_WINDOW_MS  = 8_000;
+const MIN_PLAYERS   = 2;
+const MAX_PLAYERS   = 8;
+const HAND_SIZE     = 7;
+const TURN_MS       = 35_000;
+const UNO_WIN_MS    = 8_000;
 
 // ─── Card helpers ─────────────────────────────────────────────────────────────
 
-const COLOR_EMOJI: Record<string, string> = { red:"🔴", blue:"🔵", green:"🟢", yellow:"🟡", wild:"⚫" };
-const COLOR_AR:    Record<string, string> = { red:"أحمر", blue:"أزرق", green:"أخضر", yellow:"أصفر", wild:"جوكر" };
-const VALUE_AR:    Record<string, string> = { skip:"حظر", reverse:"عكس", "+2":"+٢", wild:"جوكر", "+4":"+٤" };
+const CE: Record<string, string> = { red:"🔴", blue:"🔵", green:"🟢", yellow:"🟡", wild:"⚫" };
+const CA: Record<string, string> = { red:"أحمر", blue:"أزرق", green:"أخضر", yellow:"أصفر", wild:"جوكر" };
+const VA: Record<string, string> = { skip:"حظر", reverse:"عكس", "+2":"+٢", wild:"جوكر", "+4":"+٤" };
 
-function cardLabel(c: UnoCard): string {
-  const ce = COLOR_EMOJI[c.color];
-  const vl = VALUE_AR[c.value] ?? c.value;
-  return `${ce} ${vl}`;
-}
+function cl(c: UnoCard): string { return `${CE[c.color]} ${VA[c.value] ?? c.value}`; }
 
 function canPlay(card: UnoCard, top: UnoCard, color: UnoCard["color"]): boolean {
   if (card.color === "wild") return true;
@@ -34,24 +30,20 @@ function canPlay(card: UnoCard, top: UnoCard, color: UnoCard["color"]): boolean 
   return false;
 }
 
-function hasPlayable(hand: UnoCard[], top: UnoCard, color: UnoCard["color"]): boolean {
-  return hand.some(c => canPlay(c, top, color));
-}
-
 // ─── Deck ─────────────────────────────────────────────────────────────────────
 
 function createDeck(): UnoCard[] {
   const colors: Array<"red"|"blue"|"green"|"yellow"> = ["red","blue","green","yellow"];
   const deck: UnoCard[] = [];
-  for (const color of colors) {
-    deck.push({ color, value: "0" });
+  for (const col of colors) {
+    deck.push({ color: col, value: "0" });
     for (let n = 1; n <= 9; n++) {
-      deck.push({ color, value: String(n) as UnoCard["value"] });
-      deck.push({ color, value: String(n) as UnoCard["value"] });
+      deck.push({ color: col, value: String(n) as UnoCard["value"] });
+      deck.push({ color: col, value: String(n) as UnoCard["value"] });
     }
     for (const v of ["skip","reverse","+2"] as const) {
-      deck.push({ color, value: v });
-      deck.push({ color, value: v });
+      deck.push({ color: col, value: v });
+      deck.push({ color: col, value: v });
     }
   }
   for (let i = 0; i < 4; i++) {
@@ -70,11 +62,11 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-function drawFromDeck(s: UnoState): UnoCard {
+function drawCard(s: UnoState): UnoCard {
   if (s.deck.length === 0) {
-    const top  = s.discard.pop()!;
-    s.deck     = shuffle(s.discard);
-    s.discard  = [top];
+    const top = s.discard.pop()!;
+    s.deck    = shuffle(s.discard);
+    s.discard = [top];
   }
   return s.deck.pop()!;
 }
@@ -82,67 +74,106 @@ function drawFromDeck(s: UnoState): UnoCard {
 // ─── Player helpers ───────────────────────────────────────────────────────────
 
 function dn(p: UnoPlayer): string {
-  const full = [p.firstName, p.lastName].filter(Boolean).join(" ");
-  return full || (p.username ? `@${p.username}` : String(p.id));
+  const f = [p.firstName, p.lastName].filter(Boolean).join(" ");
+  return f || (p.username ? `@${p.username}` : String(p.id));
 }
 function toP(p: UnoPlayer) { return { id: p.id, username: p.username, name: dn(p) }; }
 
 // ─── Message builders ─────────────────────────────────────────────────────────
 
 function buildJoinMsg(s: UnoState): string {
-  const list = s.players.map(p => `• ${esc(dn(p))}`).join("\n") || "—";
   return (
     `🃏 <b>أونو</b>\n\n` +
-    `لعبة الأوراق الشهيرة — تخلص من أوراقك أول!\n` +
-    `كل لاعب يأخذ 7 أوراق. طابق اللون أو الرقم أو الرمز.\n` +
-    `⚠️ لما تبقى ورقة واحدة — قُل <b>UNO!</b>\n\n` +
-    `👥 <b>اللاعبون (${s.players.length}/${MAX_PLAYERS}):</b>\n${list}\n\n` +
+    `كل لاعب يأخذ 7 أوراق — تخلص منها أول!\n` +
+    `طابق اللون أو الرقم أو الرمز مع الورقة الوسط.\n` +
+    `⚠️ لما تبقى ورقة واحدة — قُل <b>UNO!</b> وإلا تسحب 2!\n\n` +
+    `👥 <b>اللاعبون (${s.players.length}/${MAX_PLAYERS}):</b>\n` +
+    s.players.map(p => `• ${esc(dn(p))}`).join("\n") + "\n\n" +
     `<i>اضغط ▶️ لبدء اللعبة (2–8 لاعبين)</i>`
   );
 }
 
-function handBar(count: number): string {
-  const filled = Math.min(count, 10);
-  return "●".repeat(filled) + (count > 10 ? `+${count-10}` : "");
-}
-
-function buildGameMsg(s: UnoState): string {
+// The persistent game-state message — no hand buttons
+function buildStateMsg(s: UnoState): string {
   const top = s.discard[s.discard.length - 1];
   const dir = s.direction === 1 ? "⬇" : "⬆";
+  const cur = s.players[s.currentIdx];
 
   let txt = `🃏 <b>أونو</b>  ${dir}\n\n`;
-  txt += `┌───────────────────┐\n`;
-  txt += `│ ${cardLabel(top).padEnd(14)}      │\n`;
-  txt += `└───────────────────┘\n`;
-  txt += `🎨 <b>اللون:</b> ${COLOR_EMOJI[s.currentColor]} ${COLOR_AR[s.currentColor]}\n\n`;
 
+  // Top card visual
+  txt += `┌────────────────┐\n`;
+  txt += `│  ${cl(top).padEnd(14)}│\n`;
+  txt += `└────────────────┘\n`;
+  txt += `🎨 <b>اللون الفعّال:</b> ${CE[s.currentColor]} ${CA[s.currentColor]}\n\n`;
+
+  // Player list
   txt += `👥 <b>اللاعبون:</b>\n`;
   for (let i = 0; i < s.players.length; i++) {
     const p   = s.players[i];
-    const cur = i === s.currentIdx;
+    const isCur = i === s.currentIdx;
     const cnt = p.hand.length;
-    const uno = cnt === 1 ? " ⚠️ UNO!" : "";
-    txt += `${cur ? "▶️" : "   "} <b>${esc(dn(p))}</b>  ${handBar(cnt)} (${cnt})${uno}\n`;
+    const unoWarn = cnt === 1 ? " ⚠️ UNO!" : "";
+    const bar = "●".repeat(Math.min(cnt, 9)) + (cnt > 9 ? `+${cnt-9}` : "");
+    txt += `${isCur ? "▶️" : "   "} ${esc(dn(p))}  ${bar} (${cnt})${unoWarn}\n`;
   }
-  txt += "\n";
 
-  const cur = s.players[s.currentIdx];
+  txt += `\n`;
 
-  if (s.drawPending > 0) {
-    txt += `⚡ <b>${esc(dn(cur))}</b> يجب عليك سحب ${s.drawPending} أوراق!\n`;
-  } else if (s.colorChoosing) {
-    txt += `🎨 <b>${esc(dn(cur))}</b> اختر اللون:`;
+  if (s.colorChoosing) {
+    txt += `🎨 <b>${esc(dn(cur))}</b> — اختر اللون`;
+  } else if (s.drawPending > 0) {
+    txt += `⚡ <b>${esc(dn(cur))}</b> — يجب سحب <b>${s.drawPending}</b> أوراق`;
   } else {
-    txt += `━━━ دور <b>${esc(dn(cur))}</b> ━━━`;
+    txt += `🔔 دور <b>${esc(dn(cur))}</b>`;
+    if (s.unoCallerId !== undefined) {
+      const uno = s.players.find(p => p.id === s.unoCallerId);
+      if (uno) txt += `\n⚠️ <b>${esc(dn(uno))}</b> عنده ورقة واحدة — سمّع عليه!`;
+    }
+  }
+
+  return txt;
+}
+
+// The ephemeral hand message — shown per turn, deleted on next turn
+function buildHandMsg(s: UnoState, player: UnoPlayer): string {
+  const top = s.discard[s.discard.length - 1];
+
+  if (s.colorChoosing) {
+    return `🎨 <b>${esc(dn(player))}</b>\nاختر لون الجوكر:`;
+  }
+  if (s.drawPending > 0) {
+    return (
+      `⚡ <b>${esc(dn(player))}</b>\n` +
+      `اللي عليك سحب <b>${s.drawPending}</b> أوراق — ما تقدر تلعب!\n\n` +
+      `اضغط الزر أدناه للسحب:`
+    );
+  }
+
+  const playableCount = player.hand.filter(c => canPlay(c, top, s.currentColor)).length;
+  let txt = `🃏 <b>دور ${esc(dn(player))}</b>\n\n`;
+  txt += `الورقة الحالية: <b>${cl(top)}</b>   اللون: <b>${CE[s.currentColor]} ${CA[s.currentColor]}</b>\n\n`;
+  txt += `📋 <b>أوراقك (${player.hand.length}):</b>\n`;
+
+  for (let i = 0; i < player.hand.length; i++) {
+    const c  = player.hand[i];
+    const ok = canPlay(c, top, s.currentColor);
+    txt += `${ok ? "✅" : "❌"} ${i + 1}. <b>${cl(c)}</b>\n`;
+  }
+
+  if (!s.hasDrawn) {
+    if (playableCount === 0) txt += `\n<i>ما عندك ورقة تنطبق — اسحب من المجموعة</i>`;
+  } else {
+    txt += `\n<i>سحبت ورقة — العب أو مرّر الدور</i>`;
   }
 
   return txt;
 }
 
 function buildHandKeyboard(chatId: number, s: UnoState): ReturnType<typeof Markup.inlineKeyboard> {
+  const rows: ReturnType<typeof Markup.button.callback>[][] = [];
   const cur = s.players[s.currentIdx];
   const top = s.discard[s.discard.length - 1];
-  const rows: ReturnType<typeof Markup.button.callback>[][] = [];
 
   if (s.colorChoosing) {
     rows.push([
@@ -157,136 +188,138 @@ function buildHandKeyboard(chatId: number, s: UnoState): ReturnType<typeof Marku
   }
 
   if (s.drawPending > 0) {
-    rows.push([Markup.button.callback(`🃏 اسحب ${s.drawPending} أوراق`, `uno:draw:${chatId}`)]);
-    return Markup.inlineKeyboard(rows);
+    return Markup.inlineKeyboard([[
+      Markup.button.callback(`🃏 اسحب ${s.drawPending} أوراق`, `uno:draw:${chatId}`),
+    ]]);
   }
 
-  // Show hand
-  const cardBtns = cur.hand.map((c, i) =>
-    Markup.button.callback(cardLabel(c), `uno:play:${chatId}:${i}`)
+  // Card buttons
+  const btns = cur.hand.map((c, i) =>
+    Markup.button.callback(cl(c), `uno:play:${chatId}:${i}`)
   );
-  for (let i = 0; i < cardBtns.length; i += 4) {
-    rows.push(cardBtns.slice(i, i + 4));
-  }
+  for (let i = 0; i < btns.length; i += 4) rows.push(btns.slice(i, i + 4));
 
+  const bottom: ReturnType<typeof Markup.button.callback>[] = [];
   if (!s.hasDrawn) {
-    rows.push([Markup.button.callback("🃏 سحب ورقة", `uno:draw:${chatId}`)]);
+    bottom.push(Markup.button.callback("🃏 سحب ورقة", `uno:draw:${chatId}`));
   } else {
-    rows.push([Markup.button.callback("⏭ تمرير الدور", `uno:pass:${chatId}`)]);
+    bottom.push(Markup.button.callback("⏭ تمرير الدور", `uno:pass:${chatId}`));
   }
-
-  // UNO button
   if (s.unoCallerId !== undefined) {
-    rows.push([Markup.button.callback("🔔 قُل / سمّع UNO!", `uno:uno:${chatId}`)]);
+    bottom.push(Markup.button.callback("🔔 قُل UNO!", `uno:uno:${chatId}`));
   }
+  if (bottom.length) rows.push(bottom);
 
   return Markup.inlineKeyboard(rows);
 }
 
 // ─── Turn management ──────────────────────────────────────────────────────────
 
-function nextIdx(s: UnoState, skips = 1): number {
+function nextIdx(s: UnoState, extra = false): number {
   const n = s.players.length;
-  return ((s.currentIdx + s.direction * skips) % n + n) % n;
+  return ((s.currentIdx + s.direction * (extra ? 2 : 1)) % n + n) % n;
 }
-
-function advanceTurn(s: UnoState, extraSkip = false): void {
-  s.currentIdx = nextIdx(s, extraSkip ? 2 : 1);
+function advance(s: UnoState, extraSkip = false) {
+  s.currentIdx = nextIdx(s, extraSkip);
   s.hasDrawn   = false;
 }
 
-async function sendTurnMessage(bot: Telegraf, chatId: number): Promise<void> {
+// Delete previous hand message, send new state + hand messages
+async function sendTurnMessages(bot: Telegraf, chatId: number): Promise<void> {
   const s = gameStates.get(chatId);
   if (!s || s.type !== "uno" || s.phase !== "playing") return;
 
-  const text     = buildGameMsg(s);
-  const keyboard = buildHandKeyboard(chatId, s);
-
-  if (s.mainMsgId) {
-    await bot.telegram.editMessageText(chatId, s.mainMsgId, undefined, text, {
-      parse_mode: "HTML",
-      ...keyboard,
-    }).catch(async () => {
-      // If edit fails (e.g. message too old), send new
-      const m = await bot.telegram.sendMessage(chatId, text, { parse_mode: "HTML", ...keyboard }).catch(() => null);
-      if (m && s) s.mainMsgId = m.message_id;
-    });
-  } else {
-    const m = await bot.telegram.sendMessage(chatId, text, { parse_mode: "HTML", ...keyboard }).catch(() => null);
-    if (m && s) s.mainMsgId = m.message_id;
+  // 1. Delete old hand message
+  if (s.handMsgId) {
+    await bot.telegram.deleteMessage(chatId, s.handMsgId).catch(() => {});
+    s.handMsgId = undefined;
   }
 
-  // Reset turn timer
+  // 2. Edit main state message
+  if (s.mainMsgId) {
+    await bot.telegram.editMessageText(
+      chatId, s.mainMsgId, undefined,
+      buildStateMsg(s),
+      { parse_mode: "HTML", ...Markup.inlineKeyboard([]) }
+    ).catch(() => {});
+  }
+
+  // 3. Send fresh hand message for current player
+  const cur = s.players[s.currentIdx];
+  const hMsg = await bot.telegram.sendMessage(
+    chatId,
+    buildHandMsg(s, cur),
+    { parse_mode: "HTML", ...buildHandKeyboard(chatId, s) }
+  ).catch(() => null);
+  if (hMsg) s.handMsgId = hMsg.message_id;
+
+  // 4. Reset turn timer
   if (s.turnTimer) clearTimeout(s.turnTimer);
   s.turnTimer = setTimeout(() => autoPlay(bot, chatId), TURN_MS);
 }
 
-// Auto-play on timeout
+// ─── Auto-play on timeout ─────────────────────────────────────────────────────
+
 async function autoPlay(bot: Telegraf, chatId: number): Promise<void> {
   const s = gameStates.get(chatId);
   if (!s || s.type !== "uno" || s.phase !== "playing") return;
-
   const cur = s.players[s.currentIdx];
   const top = s.discard[s.discard.length - 1];
 
   if (s.drawPending > 0) {
-    // Force draw
-    for (let i = 0; i < s.drawPending; i++) cur.hand.push(drawFromDeck(s));
+    for (let i = 0; i < s.drawPending; i++) cur.hand.push(drawCard(s));
     s.drawPending = 0;
-    advanceTurn(s);
-    await sendTurnMessage(bot, chatId);
+    advance(s);
+    await sendTurnMessages(bot, chatId);
     return;
   }
-
   if (s.colorChoosing) {
-    // Pick random color
     const colors: UnoCard["color"][] = ["red","blue","green","yellow"];
     s.currentColor  = colors[Math.floor(Math.random() * 4)];
     s.colorChoosing = false;
-    advanceTurn(s);
-    await sendTurnMessage(bot, chatId);
+    advance(s);
+    await sendTurnMessages(bot, chatId);
     return;
   }
-
   if (s.hasDrawn) {
-    // Already drew, just pass
-    advanceTurn(s);
-    await sendTurnMessage(bot, chatId);
+    advance(s);
+    await sendTurnMessages(bot, chatId);
     return;
   }
 
-  // Draw a card
-  const drawn = drawFromDeck(s);
+  // Draw one card
+  const drawn = drawCard(s);
   cur.hand.push(drawn);
+  s.hasDrawn = true;
 
   if (canPlay(drawn, top, s.currentColor)) {
-    // Play it
-    await playCard(bot, chatId, cur, cur.hand.length - 1, "auto");
-  } else {
-    // Can't play, skip
-    advanceTurn(s);
     await bot.telegram.sendMessage(chatId,
-      `⏱ <b>${esc(dn(cur))}</b> انتهى وقته — تخطّى دوره!`,
+      `⏱ <b>${esc(dn(cur))}</b> انتهى وقته — لعب <b>${cl(drawn)}</b> تلقائياً`,
       { parse_mode: "HTML" }
     ).catch(() => {});
-    await sendTurnMessage(bot, chatId);
+    await applyCard(bot, chatId, cur, cur.hand.length - 1);
+  } else {
+    advance(s);
+    await bot.telegram.sendMessage(chatId,
+      `⏱ <b>${esc(dn(cur))}</b> انتهى وقته — تخطّى دوره`,
+      { parse_mode: "HTML" }
+    ).catch(() => {});
+    await sendTurnMessages(bot, chatId);
   }
 }
 
-// ─── Core play logic ──────────────────────────────────────────────────────────
+// ─── Core: apply a played card ────────────────────────────────────────────────
 
-async function playCard(
-  bot: Telegraf, chatId: number,
-  player: UnoPlayer, handIdx: number, source: "player" | "auto",
+async function applyCard(
+  bot: Telegraf, chatId: number, player: UnoPlayer, handIdx: number,
 ): Promise<void> {
   const s = gameStates.get(chatId);
   if (!s || s.type !== "uno") return;
 
-  const card = player.hand[handIdx];
-  player.hand.splice(handIdx, 1);
+  const card = player.hand.splice(handIdx, 1)[0];
   s.discard.push(card);
 
-  // Clear UNO challenge on playing
+  // Clear UNO challenge if this player had it
   if (s.unoCallerId === player.id) {
     if (s.unoChallengeTimer) { clearTimeout(s.unoChallengeTimer); s.unoChallengeTimer = undefined; }
     s.unoCallerId = undefined;
@@ -297,26 +330,23 @@ async function playCard(
     await endUno(bot, chatId, player); return;
   }
 
-  // UNO challenge: 1 card left and hasn't called UNO
+  // Set UNO challenge if player now has exactly 1 card
   if (player.hand.length === 1 && s.unoCallerId === undefined) {
     s.unoCallerId = player.id;
     s.unoChallengeTimer = setTimeout(() => {
       const st = gameStates.get(chatId);
-      if (st && st.type === "uno" && st.unoCallerId === player.id) {
-        st.unoCallerId = undefined;
+      if (st?.type === "uno" && st.unoCallerId === player.id) {
+        st.unoCallerId      = undefined;
         st.unoChallengeTimer = undefined;
       }
-    }, UNO_WINDOW_MS);
+    }, UNO_WIN_MS);
   }
 
   // Apply card effect
   if (card.color === "wild") {
     s.colorChoosing = true;
-    if (card.value === "+4") {
-      // Next player will have drawPending applied after color is chosen
-      s.drawPending = 4;
-    }
-    await sendTurnMessage(bot, chatId);
+    if (card.value === "+4") s.drawPending = 4;
+    await sendTurnMessages(bot, chatId);
     return;
   }
 
@@ -325,33 +355,33 @@ async function playCard(
   switch (card.value) {
     case "skip":
       await bot.telegram.sendMessage(chatId,
-        `🚫 ${esc(dn(s.players[nextIdx(s)]))} دوره مسكور!`,
+        `🚫 <b>${esc(dn(s.players[nextIdx(s)]))}</b> — دوره مسكور!`,
         { parse_mode: "HTML" }
       ).catch(() => {});
-      advanceTurn(s, true);
+      advance(s, true);
       break;
 
     case "reverse":
-      s.direction *= -1 as 1 | -1;
+      s.direction *= -1 as 1|-1;
       if (s.players.length === 2) {
-        // With 2 players: reverse = play again
-        // don't advance (stay at current player)
+        // With 2 players, reverse = play again (stay at current)
+        // We don't advance
       } else {
-        advanceTurn(s);
+        advance(s);
       }
       break;
 
     case "+2":
       s.drawPending = 2;
-      advanceTurn(s);
+      advance(s);
       break;
 
     default:
-      advanceTurn(s);
+      advance(s);
       break;
   }
 
-  await sendTurnMessage(bot, chatId);
+  await sendTurnMessages(bot, chatId);
 }
 
 // ─── End game ─────────────────────────────────────────────────────────────────
@@ -359,30 +389,31 @@ async function playCard(
 async function endUno(bot: Telegraf, chatId: number, winner: UnoPlayer): Promise<void> {
   const s = gameStates.get(chatId);
   if (!s || s.type !== "uno") return;
-  s.phase = "done";
-  if (s.turnTimer)         clearTimeout(s.turnTimer);
-  if (s.unoChallengeTimer) clearTimeout(s.unoChallengeTimer);
 
+  s.phase = "done";
+  if (s.turnTimer)          clearTimeout(s.turnTimer);
+  if (s.unoChallengeTimer)  clearTimeout(s.unoChallengeTimer);
+
+  // Clean up messages
+  if (s.handMsgId) bot.telegram.deleteMessage(chatId, s.handMsgId).catch(() => {});
   if (s.mainMsgId) {
     bot.telegram.editMessageReplyMarkup(chatId, s.mainMsgId, undefined, { inline_keyboard: [] }).catch(() => {});
   }
 
-  // Record stats
+  // Stats
   for (const p of s.players) {
     if (p.id === winner.id) recordWin(chatId, toP(p));
     else recordGame(chatId, [toP(p)]);
   }
 
   await bot.telegram.sendMessage(chatId,
-    `🎉 <b>UNO!</b>\n\n🏆 <b>${esc(dn(winner))}</b> انتهت أوراقه — مبروك الفوز!`,
+    `🎉 <b>UNO!</b>\n\n🏆 <b>${esc(dn(winner))}</b> خلّص أوراقه — مبروك الفوز!`,
     { parse_mode: "HTML" }
   ).catch(() => {});
 
   try {
     const results = s.players.map(p => ({
-      name:      dn(p),
-      cards:     p.hand.length,
-      isWinner:  p.id === winner.id,
+      name: dn(p), cards: p.hand.length, isWinner: p.id === winner.id,
     }));
     const buf = await generateUnoWinnerCard(dn(winner), results);
     await bot.telegram.sendPhoto(chatId, { source: buf }, {
@@ -392,6 +423,63 @@ async function endUno(bot: Telegraf, chatId: number, winner: UnoPlayer): Promise
   } catch (e) { logger.warn({ err: e }, "uno winner card failed"); }
 
   clearGame(chatId);
+}
+
+// ─── Launch ───────────────────────────────────────────────────────────────────
+
+async function launchUno(bot: Telegraf, chatId: number): Promise<void> {
+  const s = gameStates.get(chatId);
+  if (!s || s.type !== "uno") return;
+
+  s.phase = "playing";
+  s.deck  = createDeck();
+
+  for (const p of s.players) {
+    for (let i = 0; i < HAND_SIZE; i++) p.hand.push(drawCard(s));
+  }
+
+  // First card must be a plain number
+  let first = drawCard(s);
+  let tries  = 0;
+  while ((first.color === "wild" || first.value === "skip" || first.value === "reverse" || first.value === "+2") && tries++ < 30) {
+    s.deck.unshift(first);
+    first = drawCard(s);
+  }
+  s.discard      = [first];
+  s.currentColor = first.color as UnoCard["color"];
+  s.currentIdx   = 0;
+  s.direction    = 1;
+  s.drawPending  = 0;
+  s.hasDrawn     = false;
+  s.colorChoosing = false;
+
+  // Send top-card image
+  try {
+    const buf = await generateUnoTopCardImage(first.color, first.value, first.color);
+    await bot.telegram.sendPhoto(chatId, { source: buf }, {
+      caption:
+        `🃏 <b>أونو — انطلقت!</b>\n\n` +
+        `الورقة الأولى: <b>${cl(first)}</b>\n\n` +
+        s.players.map(p => `• ${esc(dn(p))}: ${HAND_SIZE} أوراق`).join("\n") +
+        `\n\n<i>⬇ رسالة الدور ستظهر بعد قليل — الأوراق تظهر لكل لاعب في دوره فقط</i>`,
+      parse_mode: "HTML",
+    }).catch(() => {});
+  } catch (e) {
+    logger.warn({ err: e }, "uno top card image failed");
+    await bot.telegram.sendMessage(chatId,
+      `🃏 <b>أونو — انطلقت!</b>\nالورقة الأولى: ${cl(first)}`,
+      { parse_mode: "HTML" }
+    ).catch(() => {});
+  }
+
+  // Send the persistent state message
+  const sMsg = await bot.telegram.sendMessage(
+    chatId, buildStateMsg(s),
+    { parse_mode: "HTML", ...Markup.inlineKeyboard([]) }
+  ).catch(() => null);
+  if (sMsg) s.mainMsgId = sMsg.message_id;
+
+  await sendTurnMessages(bot, chatId);
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -471,28 +559,30 @@ export async function handleUnoPlay(bot: Telegraf, ctx: Context, chatId: number,
   if (!s || s.type !== "uno" || s.phase !== "playing") {
     await ctx.answerCbQuery("❌ اللعبة مو شغالة").catch(() => {}); return;
   }
+  const cur = s.players[s.currentIdx];
+  if (from.id !== cur.id) {
+    await ctx.answerCbQuery("⛔ مو دورك!").catch(() => {}); return;
+  }
   if (s.colorChoosing || s.drawPending > 0) {
     await ctx.answerCbQuery("⛔ اتبع التعليمات أولاً!").catch(() => {}); return;
   }
-
-  const curPlayer = s.players[s.currentIdx];
-  if (from.id !== curPlayer.id) {
-    await ctx.answerCbQuery("⛔ مو دورك!").catch(() => {}); return;
-  }
-
-  if (handIdx < 0 || handIdx >= curPlayer.hand.length) {
+  if (handIdx < 0 || handIdx >= cur.hand.length) {
     await ctx.answerCbQuery("❌ ورقة غير صالحة").catch(() => {}); return;
   }
-
-  const card = curPlayer.hand[handIdx];
+  const card = cur.hand[handIdx];
   const top  = s.discard[s.discard.length - 1];
-
   if (!canPlay(card, top, s.currentColor)) {
-    await ctx.answerCbQuery(`❌ ${cardLabel(card)} — ما تنطبق الحين!`).catch(() => {}); return;
+    await ctx.answerCbQuery(`❌ ${cl(card)} — ما تنطبق الحين!`).catch(() => {}); return;
   }
+  await ctx.answerCbQuery(`✅ لعبت ${cl(card)}`).catch(() => {});
 
-  await ctx.answerCbQuery(`✅ لعبت ${cardLabel(card)}`).catch(() => {});
-  await playCard(bot, chatId, curPlayer, handIdx, "player");
+  // Announce the play in group
+  await bot.telegram.sendMessage(chatId,
+    `🃏 <b>${esc(dn(cur))}</b> لعب <b>${cl(card)}</b>`,
+    { parse_mode: "HTML" }
+  ).catch(() => {});
+
+  await applyCard(bot, chatId, cur, handIdx);
 }
 
 export async function handleUnoDraw(bot: Telegraf, ctx: Context, chatId: number): Promise<void> {
@@ -501,19 +591,21 @@ export async function handleUnoDraw(bot: Telegraf, ctx: Context, chatId: number)
   if (!s || s.type !== "uno" || s.phase !== "playing") {
     await ctx.answerCbQuery("❌ اللعبة مو شغالة").catch(() => {}); return;
   }
-
-  const curPlayer = s.players[s.currentIdx];
-  if (from.id !== curPlayer.id) {
+  const cur = s.players[s.currentIdx];
+  if (from.id !== cur.id) {
     await ctx.answerCbQuery("⛔ مو دورك!").catch(() => {}); return;
   }
 
   if (s.drawPending > 0) {
-    // Forced draw (from +2/+4)
-    for (let i = 0; i < s.drawPending; i++) curPlayer.hand.push(drawFromDeck(s));
+    for (let i = 0; i < s.drawPending; i++) cur.hand.push(drawCard(s));
     await ctx.answerCbQuery(`😬 سحبت ${s.drawPending} أوراق!`).catch(() => {});
+    await bot.telegram.sendMessage(chatId,
+      `📤 <b>${esc(dn(cur))}</b> سحب ${s.drawPending} أوراق`,
+      { parse_mode: "HTML" }
+    ).catch(() => {});
     s.drawPending = 0;
-    advanceTurn(s);
-    await sendTurnMessage(bot, chatId);
+    advance(s);
+    await sendTurnMessages(bot, chatId);
     return;
   }
 
@@ -521,18 +613,17 @@ export async function handleUnoDraw(bot: Telegraf, ctx: Context, chatId: number)
     await ctx.answerCbQuery("سحبت مسبقاً — مرّر الدور!").catch(() => {}); return;
   }
 
-  const drawn = drawFromDeck(s);
-  curPlayer.hand.push(drawn);
+  const drawn = drawCard(s);
+  cur.hand.push(drawn);
   s.hasDrawn = true;
-
-  const top = s.discard[s.discard.length - 1];
-  const playable = canPlay(drawn, top, s.currentColor);
-
-  await ctx.answerCbQuery(
-    playable ? `🃏 سحبت ${cardLabel(drawn)} — تقدر تلعبها!` : `🃏 سحبت ${cardLabel(drawn)} — ما تنطبق`
+  await ctx.answerCbQuery(`🃏 سحبت ${cl(drawn)}`).catch(() => {});
+  await bot.telegram.sendMessage(chatId,
+    `📤 <b>${esc(dn(cur))}</b> سحب ورقة`,
+    { parse_mode: "HTML" }
   ).catch(() => {});
 
-  await sendTurnMessage(bot, chatId);
+  // Re-send hand message with new card visible
+  await sendTurnMessages(bot, chatId);
 }
 
 export async function handleUnoPass(bot: Telegraf, ctx: Context, chatId: number): Promise<void> {
@@ -541,16 +632,16 @@ export async function handleUnoPass(bot: Telegraf, ctx: Context, chatId: number)
   if (!s || s.type !== "uno" || s.phase !== "playing") {
     await ctx.answerCbQuery("❌ اللعبة مو شغالة").catch(() => {}); return;
   }
-  const curPlayer = s.players[s.currentIdx];
-  if (from.id !== curPlayer.id) {
+  const cur = s.players[s.currentIdx];
+  if (from.id !== cur.id) {
     await ctx.answerCbQuery("⛔ مو دورك!").catch(() => {}); return;
   }
   if (!s.hasDrawn) {
     await ctx.answerCbQuery("يجب تسحب ورقة أولاً!").catch(() => {}); return;
   }
   await ctx.answerCbQuery("⏭ تمرير الدور").catch(() => {});
-  advanceTurn(s);
-  await sendTurnMessage(bot, chatId);
+  advance(s);
+  await sendTurnMessages(bot, chatId);
 }
 
 export async function handleUnoColor(
@@ -561,8 +652,8 @@ export async function handleUnoColor(
   if (!s || s.type !== "uno" || s.phase !== "playing") {
     await ctx.answerCbQuery("❌ اللعبة مو شغالة").catch(() => {}); return;
   }
-  const curPlayer = s.players[s.currentIdx];
-  if (from.id !== curPlayer.id) {
+  const cur = s.players[s.currentIdx];
+  if (from.id !== cur.id) {
     await ctx.answerCbQuery("⛔ مو دورك!").catch(() => {}); return;
   }
   if (!s.colorChoosing) {
@@ -571,23 +662,15 @@ export async function handleUnoColor(
 
   s.currentColor  = color;
   s.colorChoosing = false;
-
-  await ctx.answerCbQuery(`🎨 اخترت ${COLOR_EMOJI[color]} ${COLOR_AR[color]}`).catch(() => {});
+  await ctx.answerCbQuery(`🎨 ${CE[color]} ${CA[color]}`).catch(() => {});
 
   await bot.telegram.sendMessage(chatId,
-    `🎨 <b>${esc(dn(curPlayer))}</b> اختار <b>${COLOR_EMOJI[color]} ${COLOR_AR[color]}</b>`,
+    `🎨 <b>${esc(dn(cur))}</b> اختار <b>${CE[color]} ${CA[color]}</b>`,
     { parse_mode: "HTML" }
   ).catch(() => {});
 
-  // If +4 was played, apply pending draws then skip
-  if (s.drawPending > 0) {
-    advanceTurn(s); // advance to +4 victim
-    // drawPending remains, victim must draw
-  } else {
-    advanceTurn(s);
-  }
-
-  await sendTurnMessage(bot, chatId);
+  advance(s);
+  await sendTurnMessages(bot, chatId);
 }
 
 export async function handleUnoUno(bot: Telegraf, ctx: Context, chatId: number): Promise<void> {
@@ -604,75 +687,31 @@ export async function handleUnoUno(bot: Telegraf, ctx: Context, chatId: number):
   if (!challenged) { s.unoCallerId = undefined; return; }
 
   if (from.id === s.unoCallerId) {
-    // Player called UNO for themselves — safe!
+    // Safe!
     if (s.unoChallengeTimer) { clearTimeout(s.unoChallengeTimer); s.unoChallengeTimer = undefined; }
     s.unoCallerId = undefined;
-    await ctx.answerCbQuery("🔔 UNO! — آمن!").catch(() => {});
+    await ctx.answerCbQuery("🔔 UNO! — آمن! 👌").catch(() => {});
     await bot.telegram.sendMessage(chatId,
-      `🔔 <b>${esc(dn(challenged))}</b> قال <b>UNO!</b> بوقته — آمن! 👌`,
+      `🔔 <b>${esc(dn(challenged))}</b> قال <b>UNO!</b> في وقته — آمن! ✅`,
       { parse_mode: "HTML" }
     ).catch(() => {});
+    // Update hand message to remove UNO button
+    await sendTurnMessages(bot, chatId);
   } else {
-    // Someone caught them!
+    // Caught!
     if (s.unoChallengeTimer) { clearTimeout(s.unoChallengeTimer); s.unoChallengeTimer = undefined; }
     s.unoCallerId = undefined;
     const catcher = s.players.find(p => p.id === from.id);
     if (!catcher) { await ctx.answerCbQuery("⛔ أنت مو في اللعبة").catch(() => {}); return; }
 
-    challenged.hand.push(drawFromDeck(s));
-    challenged.hand.push(drawFromDeck(s));
+    challenged.hand.push(drawCard(s));
+    challenged.hand.push(drawCard(s));
     await ctx.answerCbQuery(`📣 اصطدته! ${esc(dn(challenged))} يسحب ورقتين!`).catch(() => {});
     await bot.telegram.sendMessage(chatId,
-      `📣 <b>${esc(dn(catcher))}</b> سمّع على <b>${esc(dn(challenged))}</b>!\n💀 ${esc(dn(challenged))} يسحب ورقتين عقوبة!`,
+      `📣 <b>${esc(dn(catcher))}</b> سمّع على <b>${esc(dn(challenged))}</b>!\n` +
+      `💀 <b>${esc(dn(challenged))}</b> يسحب ورقتين عقوبة!`,
       { parse_mode: "HTML" }
     ).catch(() => {});
-    await sendTurnMessage(bot, chatId);
+    await sendTurnMessages(bot, chatId);
   }
-}
-
-// ─── Launch ───────────────────────────────────────────────────────────────────
-
-async function launchUno(bot: Telegraf, chatId: number): Promise<void> {
-  const s = gameStates.get(chatId);
-  if (!s || s.type !== "uno") return;
-
-  s.phase = "playing";
-  s.deck  = createDeck();
-
-  // Deal hands
-  for (const p of s.players) {
-    for (let i = 0; i < HAND_SIZE; i++) p.hand.push(drawFromDeck(s));
-  }
-
-  // Flip first card (must be a number card)
-  let first = drawFromDeck(s);
-  while (first.color === "wild" || first.value === "skip" || first.value === "reverse" || first.value === "+2") {
-    s.deck.unshift(first); // put back at bottom
-    s.deck = [...s.deck.slice(0, s.deck.length - 1), ...shuffle([first, ...s.deck.slice(s.deck.length - 1)])];
-    first = drawFromDeck(s);
-  }
-  s.discard      = [first];
-  s.currentColor = first.color;
-  s.currentIdx   = 0;
-  s.direction    = 1;
-  s.drawPending  = 0;
-  s.hasDrawn     = false;
-  s.colorChoosing = false;
-
-  // Send start image of top card
-  try {
-    const buf = await generateUnoTopCardImage(first.color, first.value, first.color);
-    await bot.telegram.sendPhoto(chatId, { source: buf }, {
-      caption: `🃏 <b>أونو — تبدأ!</b>\nالورقة الأولى: ${cardLabel(first)}\n\n${s.players.map(p => `• ${esc(dn(p))}: ${HAND_SIZE} أوراق`).join("\n")}`,
-      parse_mode: "HTML",
-    }).catch(() => {});
-  } catch (e) {
-    logger.warn({ err: e }, "uno top card image failed");
-    await bot.telegram.sendMessage(chatId,
-      `🃏 <b>أونو — تبدأ!</b>\nالورقة الأولى: ${cardLabel(first)}\n${s.players.map(p => `• ${esc(dn(p))}: ${HAND_SIZE} أوراق`).join("\n")}`,
-      { parse_mode: "HTML" }
-    ).catch(() => {});
-  }
-
-  await sendTurnMessage(bot, chatId);
 }
