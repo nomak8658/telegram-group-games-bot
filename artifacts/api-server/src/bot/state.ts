@@ -142,10 +142,11 @@ export interface CirclePlayer {
 }
 
 export interface CircleChallenge {
-  kind: "math" | "starts" | "no_letter" | "race";
+  kind: "math" | "starts" | "no_letter" | "race" | "category";
   text: string;
   expectedNum?: number;
   letter?: string;
+  category?: string;  // for kind="category": key into WORDS map
   timerSec: number;
 }
 
