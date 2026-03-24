@@ -211,14 +211,48 @@ export interface StopwatchState {
   players:            Map<number, StopwatchPlayer>;
   startTime:          number;
   durationMs:         number;
-  countdownMsgId?:    number;
-  statusMsgId?:       number;
+  mainMsgId?:         number;
   countdownInterval?: ReturnType<typeof setInterval>;
   bombTimer?:         ReturnType<typeof setTimeout>;
   joinMsgId?:         number;
 }
 
-export type GameState = MenVsMenState | TrustBreakState | MafiaState | OutsiderState | CircleState | BombState | StopwatchState;
+// ─── UNO ──────────────────────────────────────────────────────────────────────
+
+export interface UnoCard {
+  color: "red" | "blue" | "green" | "yellow" | "wild";
+  value: "0"|"1"|"2"|"3"|"4"|"5"|"6"|"7"|"8"|"9"|"skip"|"reverse"|"+2"|"wild"|"+4";
+}
+
+export interface UnoPlayer {
+  id:        number;
+  username?: string;
+  firstName: string;
+  lastName:  string;
+  hand:      UnoCard[];
+}
+
+export interface UnoState {
+  type:                "uno";
+  phase:               "joining" | "playing" | "done";
+  hostId:              number;
+  players:             UnoPlayer[];
+  deck:                UnoCard[];
+  discard:             UnoCard[];
+  currentIdx:          number;
+  direction:           1 | -1;
+  currentColor:        UnoCard["color"];
+  drawPending:         number;
+  hasDrawn:            boolean;
+  colorChoosing:       boolean;
+  unoCallerId?:        number;
+  unoChallengeTimer?:  ReturnType<typeof setTimeout>;
+  mainMsgId?:          number;
+  joinMsgId?:          number;
+  turnTimer?:          ReturnType<typeof setTimeout>;
+}
+
+export type GameState = MenVsMenState | TrustBreakState | MafiaState | OutsiderState | CircleState | BombState | StopwatchState | UnoState;
 
 export const gameStates = new Map<number, GameState>();
 export const privateUserToGame = new Map<number, number>();
@@ -365,6 +399,9 @@ export function clearGame(chatId: number): void {
   } else if (s.type === "stopwatch") {
     if (s.countdownInterval) clearInterval(s.countdownInterval);
     if (s.bombTimer)          clearTimeout(s.bombTimer);
+  } else if (s.type === "uno") {
+    if (s.turnTimer)          clearTimeout(s.turnTimer);
+    if (s.unoChallengeTimer)  clearTimeout(s.unoChallengeTimer);
   }
 
   gameStates.delete(chatId);
