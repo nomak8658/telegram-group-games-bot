@@ -230,6 +230,8 @@ export interface UnoPlayer {
   firstName: string;
   lastName:  string;
   hand:      UnoCard[];
+  dmChatId?: number;   // private chat ID with bot (registered via /start)
+  dmMsgId?:  number;   // hand-message ID in DM
 }
 
 export interface UnoState {
@@ -247,10 +249,11 @@ export interface UnoState {
   colorChoosing:       boolean;
   unoCallerId?:        number;
   unoChallengeTimer?:  ReturnType<typeof setTimeout>;
-  mainMsgId?:          number;
-  handMsgId?:          number;
+  groupPhotoMsgId?:    number;  // the ONE persistent photo in group
   joinMsgId?:          number;
   turnTimer?:          ReturnType<typeof setTimeout>;
+  botUsername:         string;
+  round:               number;
 }
 
 export type GameState = MenVsMenState | TrustBreakState | MafiaState | OutsiderState | CircleState | BombState | StopwatchState | UnoState;
