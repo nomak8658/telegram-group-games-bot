@@ -17,25 +17,27 @@ function toP(p: StopwatchPlayer) {
   return { id: p.id, username: p.username, name: dnS(p) };
 }
 function fmtMs(ms: number): string {
-  return (Math.max(0, ms) / 1000).toFixed(2) + " ث";
+  const s = Math.max(0, ms) / 1000;
+  return s.toFixed(3).replace(/(\.\d{2})\d/, "$1") + " ث";
 }
-function makeBar(remainingMs: number, totalMs: number, len = 16): string {
+function makeBar(remainingMs: number, totalMs: number, len = 18): string {
   const ratio  = Math.max(0, remainingMs / totalMs);
   const filled = Math.round(ratio * len);
-  return "▓".repeat(filled) + "░".repeat(len - filled);
+  return "▰".repeat(filled) + "▱".repeat(len - filled);
 }
 function fmtDisplay(remainingMs: number): string {
-  const s   = Math.max(0, remainingMs / 1000);
-  const int = Math.floor(s);
-  const dec = Math.floor((s - int) * 10);
-  return `${String(int).padStart(2, "0")}.${dec}`;
+  const total = Math.max(0, remainingMs);
+  const m   = Math.floor(total / 60_000);
+  const s   = Math.floor((total % 60_000) / 1_000);
+  const d   = Math.floor((total % 1_000) / 100);
+  return `${m > 0 ? `${m}:` : ""}${String(s).padStart(m > 0 ? 2 : 1, "0")}.${d}`;
 }
 function buildPlayerList(s: StopwatchState): string {
   return [...s.players.values()].map(p => `• ${esc(dnS(p))}`).join("\n") || "—";
 }
 
 const GAME_DURATION_MS = 20_000;
-const UPDATE_MS        = 1_500;  // edit every 1.5s — safe for Telegram rate limits
+const UPDATE_MS        = 800;    // edit every 0.8s — feels precise, within Telegram limits
 const MIN_PLAYERS      = 2;
 
 // ─── Build combined message ───────────────────────────────────────────────────
