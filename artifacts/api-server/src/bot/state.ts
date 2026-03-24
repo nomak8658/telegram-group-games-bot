@@ -248,6 +248,7 @@ export interface UnoState {
   unoCallerId?:        number;
   unoChallengeTimer?:  ReturnType<typeof setTimeout>;
   mainMsgId?:          number;
+  handMsgId?:          number;
   joinMsgId?:          number;
   turnTimer?:          ReturnType<typeof setTimeout>;
 }
