@@ -26,6 +26,99 @@ function isArabic(text: string): boolean {
   return /[\u0600-\u06FF]/.test(text.trim());
 }
 
+// ─── Category word lists ──────────────────────────────────────────────────────
+
+const WORDS: Record<string, string[]> = {
+  animals: [
+    // أليفة وشائعة جداً
+    "قط","كلب","حصان","بقرة","شاة","خروف","ماعز","أرنب","ببغاء","حمام","دجاج","ديك","بط","إوزة",
+    "جمل","ناقة","حمار","بغل","جاموس","فأر",
+    // كبيرة وشهيرة
+    "أسد","نمر","فيل","زرافة","قرد","ثعلب","ذئب","دب","كركدن","فهد","شمبانزي","غوريلا","حصان",
+    "زبرا","غزال","وعل","أيل","نمس","ظبي","لاما","مها","يرقان","كنغر","ألباكا","ياك",
+    // طيور
+    "نسر","صقر","طاووس","بجعة","لقلق","فلامينغو","بومة","هدهد","بلبل","عصفور","غراب",
+    "شاهين","عندليب","طوقان","حجل","رخمة","عقاب","سنونو","يمامة","حجل","بطريق","كركي",
+    // بحرية
+    "دلفين","حوت","قرش","أخطبوط","حبار","نجم البحر","فقمة","أسد البحر","سلطعون","كركند",
+    "سمكة","تونة","سلطعون","حصان البحر","قنديل البحر",
+    // زواحف وبرمائيات
+    "تمساح","أفعى","ثعبان","كوبرا","سحلية","حرباء","سلحفاة","ضفدع","ضب","ورل","وزغ","برص",
+    // حشرات وأخرى
+    "نحلة","فراشة","نمل","صرصور","عقرب","بعوضة","ذبابة","دودة","خنفساء","حلزون","عنكبوت",
+    // إضافية شائعة في العربية
+    "خفاش","قنفذ","سنجاب","ضبع","وشق","غرير","دلق","ابن عرس","راكون","بابون","قرد المكاك",
+  ],
+  fruits: [
+    "تفاح","موز","برتقال","عنب","بطيخ","فراولة","مانجو","خوخ","كمثرى","تين","رمان","ليمون","بطاطا",
+    "أناناس","كيوي","توت","كرز","خرموز","شمام","بلح","نخل","جوافة","بابايا","ليتشي","نارنج",
+    "زيتون","نبق","حصرم","عوسج","قشطة","آفوكادو","تمر","مشمش","برقوق","كراز","لوزة","فستق",
+    "جوز","لوز","حبحب","جريب فروت","مندرين","يوسفي","كلمنتين","نكتارين","إجاص","دراق","عليق",
+  ],
+  colors: [
+    "أحمر","أزرق","أخضر","أصفر","أبيض","أسود","برتقالي","بنفسجي","وردي","بني","رمادي","ذهبي",
+    "فضي","تركوازي","زيتي","كحلي","عنابي","قرمزي","فيروزي","أرجواني","سماوي","بيج","كريمي",
+    "خوخي","ليموني","بطيخي","نيلي","دموعي","شفاف","قاتم","فاتح","ملوني",
+  ],
+  cities_sa: [
+    "الرياض","جدة","مكة","المدينة","الدمام","الخبر","الظهران","تبوك","أبها","خميس مشيط",
+    "حائل","نجران","جازان","ينبع","القطيف","الهفوف","الطائف","بريدة","عنيزة","أرامكو",
+    "المجمعة","الجبيل","شقراء","الزلفي","عرعر","سكاكا","القيصومة","رفحاء","طريف","وادي الدواسر",
+    "بيشة","المخواة","القنفذة","صبيا","احد رفيدة","ضباء","العُلا","العقيق","المندق",
+  ],
+  countries_ar: [
+    "السعودية","مصر","الإمارات","الكويت","قطر","البحرين","عُمان","الأردن","لبنان","سوريا",
+    "العراق","ليبيا","تونس","الجزائر","المغرب","السودان","اليمن","الصومال","موريتانيا","جيبوتي",
+    "فلسطين","الأراضي الفلسطينية",
+  ],
+  countries_asia: [
+    "الصين","اليابان","الهند","كوريا","تايلاند","إندونيسيا","ماليزيا","سنغافورة","فيتنام",
+    "الفلبين","بنغلاديش","باكستان","أفغانستان","إيران","تركيا","كازاخستان","أوزبكستان",
+    "تركمانستان","أذربيجان","جورجيا","أرمينيا","نيبال","سريلانكا","ميانمار","كمبوديا","لاوس",
+    "منغوليا","كوريا الشمالية","تايوان","هونج كونج","تيمور الشرقية","بروناي","المالديف",
+  ],
+  jobs: [
+    "طبيب","مهندس","معلم","محامي","طيار","ممرض","شرطي","جندي","عامل","فلاح","بائع","محاسب",
+    "مصمم","برمجة","مبرمج","مدير","مستشار","سائق","طباخ","حلاق","نجار","حداد","كهربائي",
+    "سباك","بناء","رسام","ممثل","صحفي","مذيع","فنان","موسيقي","رياضي","لاعب","مدرب",
+    "دكتور","صيدلاني","مختبر","أشعة","مساح","معماري","ديكور","مصور","مخرج","كاتب","شاعر",
+  ],
+  food: [
+    "كبسة","مندي","مطبق","حريس","جريش","صالونة","كباب","شاورما","فلافل","حمص","فتة","مسخن",
+    "مقلوبة","بريياني","سمبوسة","لقيمات","خبز","رز","عيش","لحم","دجاج","سمك","تمر","قهوة",
+    "شاي","لبن","عصير","هريس","بسبوسة","كنافة","قطايف","مهلبية","رز بالحليب","كليجا",
+  ],
+  rivers: [
+    "النيل","الفرات","دجلة","الأمازون","المسيسيبي","الفولغا","الراين","الدانوب","الميكونغ",
+    "الغانج","السند","نهر الصين الأصفر","اليانغتسي","الكونغو","النيجر","الزمبيزي","الأورال",
+    "الأوب","الينيسي","اللينا","المتزموري","الهدسون","كولورادو","أوهايو","ميسوري",
+  ],
+};
+
+function normalize(t: string): string {
+  return t.trim()
+    .replace(/[أإآا]/g, "ا")
+    .replace(/[ة]/g, "ه")
+    .replace(/[ى]/g, "ي")
+    .replace(/[\u064B-\u065F]/g, "") // remove tashkeel
+    .toLowerCase();
+}
+
+function inList(answer: string, list: string[]): boolean {
+  const a = normalize(answer.trim().split(/\s+/)[0]); // first word only
+  if (a.length < 2) return false;
+  return list.some(w => {
+    const nw = normalize(w);
+    // Exact match (after normalize)
+    if (nw === a) return true;
+    // Answer is a prefix of a list word (min 3 chars match) — handles "تمساح" vs "تمس"
+    if (a.length >= 3 && nw.startsWith(a) && a.length >= nw.length - 2) return true;
+    // List word is the answer (user wrote full correct word)
+    if (a.length >= 4 && a.startsWith(nw)) return true;
+    return false;
+  });
+}
+
 function validateAnswer(challenge: CircleChallenge, answer: string): boolean {
   const t = answer.trim();
   if (!t) return false;
@@ -36,15 +129,20 @@ function validateAnswer(challenge: CircleChallenge, answer: string): boolean {
     }
     case "starts": {
       if (!isArabic(t) || !challenge.letter) return false;
-      return t[0] === challenge.letter;
+      return normalize(t)[0] === normalize(challenge.letter!)[0];
     }
     case "no_letter": {
       if (!isArabic(t) || !challenge.letter) return false;
-      // The word must not contain the forbidden letter at all
-      return !t.includes(challenge.letter!);
+      return !normalize(t).includes(normalize(challenge.letter!));
     }
     case "race": {
+      // any arabic word, at least 2 chars
       return t.length >= 2 && isArabic(t);
+    }
+    case "category": {
+      if (!challenge.category) return false;
+      const list = WORDS[challenge.category] ?? [];
+      return t.length >= 2 && isArabic(t) && inList(t, list);
     }
     default: return false;
   }
@@ -108,24 +206,37 @@ const NO_LETTER: CircleChallenge[] = [
 ];
 
 const RACE: CircleChallenge[] = [
-  { kind: "race", text: "اكتب أي كلمة عربية أسرع ما تقدر!",      timerSec: 9 },
-  { kind: "race", text: "اكتب اسم أي دولة عربية أسرع ما تقدر!", timerSec: 9 },
-  { kind: "race", text: "اكتب اسم أي حيوان الآن!",               timerSec: 9 },
-  { kind: "race", text: "اكتب اسم أي لون!",                       timerSec: 8 },
-  { kind: "race", text: "اكتب اسم أي فاكهة الآن!",               timerSec: 8 },
-  { kind: "race", text: "اكتب اسم مدينة سعودية!",                 timerSec: 9 },
-  { kind: "race", text: "اكتب اسم أي أكلة شعبية!",               timerSec: 9 },
-  { kind: "race", text: "اكتب اسم أي نهر في العالم!",            timerSec: 9 },
-  { kind: "race", text: "اكتب مهنة عشوائية الآن!",                timerSec: 8 },
-  { kind: "race", text: "اكتب اسم أي دولة من آسيا!",            timerSec: 9 },
+  { kind: "race", text: "اكتب أي كلمة عربية أسرع ما تقدر!", timerSec: 8 },
+  { kind: "race", text: "اكتب أي كلمة عربية الآن! — الأبطأ يطلع", timerSec: 9 },
+  { kind: "race", text: "اكتب كلمة بسرعة! — آخر واحد يجاوب يطلع", timerSec: 8 },
+];
+
+const CATEGORY: CircleChallenge[] = [
+  { kind: "category", category: "animals",      text: "اكتب اسم حيوان!", timerSec: 10 },
+  { kind: "category", category: "animals",      text: "اكتب اسم حيوان بري!", timerSec: 10 },
+  { kind: "category", category: "animals",      text: "اسم حيوان — الإجابة الغلط تطلعك!", timerSec: 10 },
+  { kind: "category", category: "fruits",       text: "اكتب اسم فاكهة!", timerSec: 10 },
+  { kind: "category", category: "fruits",       text: "اسم فاكهة أو ثمرة فقط — غيرها يطلعك!", timerSec: 10 },
+  { kind: "category", category: "colors",       text: "اكتب اسم لون!", timerSec: 8 },
+  { kind: "category", category: "colors",       text: "اسم لون فقط — أي كلمة ثانية تطلعك!", timerSec: 8 },
+  { kind: "category", category: "cities_sa",    text: "اكتب اسم مدينة سعودية!", timerSec: 11 },
+  { kind: "category", category: "cities_sa",    text: "مدينة سعودية فقط — غيرها يطلعك!", timerSec: 11 },
+  { kind: "category", category: "countries_ar", text: "اكتب اسم دولة عربية!", timerSec: 10 },
+  { kind: "category", category: "countries_ar", text: "دولة عربية فقط — أي دولة ثانية تطلعك!", timerSec: 10 },
+  { kind: "category", category: "countries_asia", text: "اكتب اسم دولة من آسيا!", timerSec: 11 },
+  { kind: "category", category: "jobs",         text: "اكتب اسم مهنة!", timerSec: 9 },
+  { kind: "category", category: "jobs",         text: "مهنة فقط — أي كلمة ثانية تطلعك!", timerSec: 9 },
+  { kind: "category", category: "food",         text: "اكتب اسم أكلة شعبية!", timerSec: 10 },
+  { kind: "category", category: "food",         text: "اسم أكل أو شراب شعبي — غيره يطلعك!", timerSec: 10 },
+  { kind: "category", category: "rivers",       text: "اكتب اسم نهر في العالم!", timerSec: 12 },
 ];
 
 function pickChallenge(round: number, used: Set<string>): CircleChallenge {
   let pool: CircleChallenge[];
-  if (round <= 2)       pool = [...RACE];
-  else if (round <= 4)  pool = [...RACE, ...STARTS.slice(0, 10)];
-  else if (round <= 7)  pool = [...MATH.slice(0, 8), ...STARTS, ...NO_LETTER.slice(0, 4)];
-  else                  pool = [...MATH, ...NO_LETTER, ...STARTS];
+  if (round <= 2)       pool = [...RACE, ...CATEGORY.slice(0, 8)];
+  else if (round <= 4)  pool = [...CATEGORY, ...STARTS.slice(0, 10)];
+  else if (round <= 7)  pool = [...MATH.slice(0, 8), ...CATEGORY, ...STARTS, ...NO_LETTER.slice(0, 4)];
+  else                  pool = [...MATH, ...NO_LETTER, ...STARTS, ...CATEGORY];
 
   const fresh   = pool.filter(c => !used.has(c.text));
   const choices = fresh.length > 0 ? fresh : pool;
@@ -305,11 +416,20 @@ async function sendChallenge(bot: Telegraf, chatId: number): Promise<void> {
   if (s.round >= 7) header += `  🔥`;
 
   // Challenge type hint
+  const catLabel: Record<string, string> = {
+    animals: "🐾 حيوانات", fruits: "🍓 فواكه", colors: "🎨 ألوان",
+    cities_sa: "🏙️ مدن سعودية", countries_ar: "🌍 دول عربية",
+    countries_asia: "🌏 دول آسيا", jobs: "💼 مهن", food: "🍽️ أكل شعبي", rivers: "🌊 أنهار",
+  };
   let hint = "";
-  if (challenge.kind === "math")      hint = "📐 <b>حساب</b> — اكتب الرقم فقط";
-  if (challenge.kind === "starts")    hint = "✍️ <b>كلمة</b> — أسرع إجابة صحيحة تنجو";
-  if (challenge.kind === "no_letter") hint = "⚠️ <b>تحدي الحرف المحظور</b> — خطأ واحد يكفي";
-  if (challenge.kind === "race")      hint = "⚡ <b>سباق سرعة</b> — أول واحد يفوز، آخر واحد يطلع";
+  if (challenge.kind === "math")      hint = "📐 <b>حساب</b> — اكتب الرقم بالأرقام فقط";
+  if (challenge.kind === "starts")    hint = "✍️ <b>كلمة بحرف معين</b> — أول كلمة صح تنجو";
+  if (challenge.kind === "no_letter") hint = "🚫 <b>حرف محظور</b> — إجابة تحتويه = إقصاء فوري";
+  if (challenge.kind === "race")      hint = "⚡ <b>سباق كلمات</b> — أسرع كلمة عربية تنجو";
+  if (challenge.kind === "category") {
+    const cat = challenge.category ?? "";
+    hint = `🎯 <b>الفئة: ${catLabel[cat] ?? cat}</b> — كلمة خارج الفئة = إقصاء فوري`;
+  }
 
   const msg = await bot.telegram.sendMessage(
     chatId,
@@ -396,7 +516,17 @@ async function resolveChallenge(bot: Telegraf, chatId: number): Promise<void> {
     }).join("، ")}\n`;
   }
   if (challenge.kind === "math" && challenge.expectedNum !== undefined) {
-    result += `\n💡 الجواب: <b>${challenge.expectedNum}</b>`;
+    result += `\n💡 الجواب الصح: <b>${challenge.expectedNum}</b>`;
+  }
+  if (challenge.kind === "category") {
+    const catLabelR: Record<string, string> = {
+      animals: "🐾 حيوانات", fruits: "🍓 فواكه", colors: "🎨 ألوان",
+      cities_sa: "🏙️ مدن سعودية", countries_ar: "🌍 دول عربية",
+      countries_asia: "🌏 دول آسيا", jobs: "💼 مهن", food: "🍽️ أكل شعبي", rivers: "🌊 أنهار",
+    };
+    const cat = challenge.category ?? "";
+    if (wrong.length > 0)
+      result += `\n💡 المقبول فقط: <b>${catLabelR[cat] ?? cat}</b> — كلمة خارج الفئة = خطأ`;
   }
 
   if (elimCandidates.length === 0) {
