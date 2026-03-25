@@ -200,6 +200,8 @@ export interface BombState {
   joinTimer?: ReturnType<typeof setTimeout>;
   joinWarnTimer?: ReturnType<typeof setTimeout>;
   bombTimer?: ReturnType<typeof setTimeout>;
+  bombSeq: number;      // increments on every new assignment; guards stale timer callbacks
+  passing: boolean;     // true while a pass is being processed; blocks concurrent passes
 }
 
 // ─── Stopwatch (سلك الموت الموقوت) ────────────────────────────────────────────
