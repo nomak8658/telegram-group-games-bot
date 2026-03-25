@@ -265,7 +265,35 @@ export interface UnoState {
   round:               number;
 }
 
-export type GameState = MenVsMenState | TrustBreakState | MafiaState | OutsiderState | CircleState | BombState | StopwatchState | UnoState;
+// ─── RPS ─────────────────────────────────────────────────────────────────────
+
+export interface RpsPlayer {
+  id: number;
+  username?: string;
+  firstName: string;
+  lastName: string;
+}
+
+export type RpsMove = "rock" | "paper" | "scissors";
+
+export interface RpsState {
+  type:            "rps";
+  phase:           "waiting" | "playing" | "done";
+  chatId:          number;
+  hostPlayer:      RpsPlayer;
+  guestPlayer:     RpsPlayer | null;
+  hostScore:       number;
+  guestScore:      number;
+  totalRounds:     number;
+  currentRound:    number;
+  hostMove:        RpsMove | null;
+  guestMove:       RpsMove | null;
+  mainMsgId:       number | null;
+  cancelTimeoutId?: ReturnType<typeof setTimeout>;
+  roundTimeoutId?: ReturnType<typeof setTimeout>;
+}
+
+export type GameState = MenVsMenState | TrustBreakState | MafiaState | OutsiderState | CircleState | BombState | StopwatchState | UnoState | RpsState;
 
 export const gameStates = new Map<number, GameState>();
 export const privateUserToGame = new Map<number, number>();
@@ -415,6 +443,9 @@ export function clearGame(chatId: number): void {
   } else if (s.type === "uno") {
     if (s.turnTimer)          clearTimeout(s.turnTimer);
     if (s.unoChallengeTimer)  clearTimeout(s.unoChallengeTimer);
+  } else if (s.type === "rps") {
+    if (s.roundTimeoutId)  clearTimeout(s.roundTimeoutId);
+    if (s.cancelTimeoutId) clearTimeout(s.cancelTimeoutId);
   }
 
   gameStates.delete(chatId);
