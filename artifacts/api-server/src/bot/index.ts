@@ -37,7 +37,10 @@ import {
   handleUnoDraw, handleUnoPass, handleUnoColor, handleUnoUno,
   registerUnoDM,
 } from "./games/uno.js";
-import type { UnoCard } from "./state.js";
+import {
+  startRps, handleRpsSetRounds, handleRpsJoin, handleRpsMove,
+} from "./games/rps.js";
+import type { UnoCard, RpsMove } from "./state.js";
 import { generateTopCard } from "./topCard.js";
 
 function menuMsg() {
@@ -50,7 +53,8 @@ function menuMsg() {
     `🔴 <b>الدائرة القاتلة</b>\n<i>تحديات سريعة — الأبطأ والغلطان يطلع، آخر واحد يبقى يفوز!</i>\n\n` +
     `💣 <b>القنبلة المتنقلة</b>\n<i>قنبلة تنتقل بين اللاعبين — واللي تنفجر عليه يطلع!</i>\n\n` +
     `⏰ <b>سلك الموت الموقوت</b>\n<i>عداد تنازلي — اضغط أقرب ما تقدر من الصفر دون أن تصله!</i>\n\n` +
-    `🃏 <b>أونو</b>\n<i>تخلص من أوراقك أول — لكن قُل UNO قبل الورقة الأخيرة!</i>`
+    `🃏 <b>أونو</b>\n<i>تخلص من أوراقك أول — لكن قُل UNO قبل الورقة الأخيرة!</i>\n\n` +
+    `🪨 <b>حجر ورقة مقص</b>\n<i>تحدي مباشر بين لاعبين — الأسرع والأذكى يفوز!</i>`
   );
 }
 
@@ -64,6 +68,7 @@ function menuKeyboard(chatId: number) {
     [Markup.button.callback("💣  القنبلة المتنقلة",       `menu:bomb:${chatId}`)],
     [Markup.button.callback("⏰  سلك الموت الموقوت",       `menu:sw:${chatId}`)],
     [Markup.button.callback("🃏  أونو",                    `menu:uno:${chatId}`)],
+    [Markup.button.callback("🪨  حجر ورقة مقص",           `menu:rps:${chatId}`)],
   ]);
 }
 
@@ -295,6 +300,12 @@ export async function launchBot(): Promise<void> {
     startUno(bot, ctx.chat.id, f.id, f.username, f.first_name ?? "", f.last_name ?? "", botUsername);
   });
 
+  bot.command(["rps", "حجر", "حجرورقمقص"], (ctx) => {
+    if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
+    const f = ctx.from;
+    startRps(bot, ctx.chat.id, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
+  });
+
   bot.command("menvsmen", (ctx) => {
     if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
     const chatId = ctx.chat.id;
@@ -430,6 +441,17 @@ export async function launchBot(): Promise<void> {
         ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
         const fu = ctx.from;
         startUno(bot, chatId, fu.id, fu.username, fu.first_name ?? "", fu.last_name ?? "", botUsername);
+        return;
+      }
+
+      if (data.startsWith("menu:rps:")) {
+        const chatId = parseInt(data.slice("menu:rps:".length), 10);
+        if (isNaN(chatId)) return;
+        if (gameStates.has(chatId)) { await ctx.answerCbQuery("⚠️ في لعبة شغالة!").catch(() => {}); return; }
+        await ctx.answerCbQuery("🪨").catch(() => {});
+        ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
+        const fr = ctx.from;
+        startRps(bot, chatId, fr.id, fr.username, fr.first_name ?? "", fr.last_name ?? "");
         return;
       }
 
@@ -626,6 +648,26 @@ export async function launchBot(): Promise<void> {
       if (data.startsWith("uno:uno:")) {
         const chatId = parseInt(data.slice("uno:uno:".length), 10);
         if (!isNaN(chatId)) { await handleUnoUno(bot, ctx, chatId); return; }
+      }
+
+      // ── حجر ورقة مقص ──────────────────────────────────────────────────────────
+      if (data.startsWith("rps:setn:")) {
+        const parts  = data.split(":");
+        const n      = parseInt(parts[2], 10);
+        const chatId = parseInt(parts[3], 10);
+        if (!isNaN(chatId) && !isNaN(n)) { await handleRpsSetRounds(bot, ctx, chatId, n); return; }
+      }
+      if (data.startsWith("rps:join:")) {
+        const chatId = parseInt(data.slice("rps:join:".length), 10);
+        if (!isNaN(chatId)) { await handleRpsJoin(bot, ctx, chatId); return; }
+      }
+      if (data.startsWith("rps:move:")) {
+        const parts  = data.split(":");
+        const move   = parts[2] as RpsMove;
+        const chatId = parseInt(parts[3], 10);
+        if (!isNaN(chatId) && ["rock", "paper", "scissors"].includes(move)) {
+          await handleRpsMove(bot, ctx, chatId, move); return;
+        }
       }
 
       await ctx.answerCbQuery().catch(() => {});
