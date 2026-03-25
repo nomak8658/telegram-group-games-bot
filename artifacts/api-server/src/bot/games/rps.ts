@@ -4,26 +4,19 @@ import {
   gameStates, clearGame, recordWin, recordGame, esc,
   type RpsState, type RpsPlayer, type RpsMove, type Player,
 } from "../state.js";
+import {
+  generateRpsChallengeCard, generateRpsRoundCard,
+  generateRpsRevealCard, generateRpsWinnerCard,
+} from "../rpsCard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const ROUND_TIMEOUT_MS  = 20_000;
+const ROUND_TIMEOUT_MS  = 25_000;
 const CANCEL_TIMEOUT_MS = 180_000;
-const REVEAL_DELAY_MS   = 2_000;
+const NEXT_ROUND_DELAY  = 2_800;
 
-const MOVE_EMOJI: Record<RpsMove, string> = {
-  rock:     "🪨",
-  paper:    "📄",
-  scissors: "✂️",
-};
-
-const MOVE_LABEL: Record<RpsMove, string> = {
-  rock:     "الحجر",
-  paper:    "الورقة",
-  scissors: "المقص",
-};
-
-const DIV = "━━━━━━━━━━━━━━━━━━━━━━";
+const MOVE_EMOJI: Record<RpsMove, string> = { rock: "🪨", paper: "📄", scissors: "✂️" };
+const MOVE_LABEL: Record<RpsMove, string> = { rock: "الحجر", paper: "الورقة", scissors: "المقص" };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -33,26 +26,21 @@ function dn(p: RpsPlayer): string {
 }
 
 function beats(a: RpsMove, b: RpsMove): boolean {
-  return (
-    (a === "rock"     && b === "scissors") ||
-    (a === "scissors" && b === "paper")    ||
-    (a === "paper"    && b === "rock")
-  );
+  return (a === "rock" && b === "scissors") ||
+         (a === "scissors" && b === "paper") ||
+         (a === "paper"    && b === "rock");
 }
 
-function beatReason(winner: RpsMove, loser: RpsMove): string {
-  if (winner === "rock"     && loser === "scissors") return "🪨 الحجر يكسر المقص";
-  if (winner === "scissors" && loser === "paper")    return "✂️ المقص يقص الورقة";
-  if (winner === "paper"    && loser === "rock")     return "📄 الورقة تغطي الحجر";
+function beatReason(w: RpsMove, l: RpsMove): string {
+  if (w === "rock"     && l === "scissors") return "🪨 الحجر يكسر المقص";
+  if (w === "scissors" && l === "paper")    return "✂️ المقص يقص الورقة";
+  if (w === "paper"    && l === "rock")     return "📄 الورقة تغطي الحجر";
   return "";
 }
 
 function roundsLabel(n: number): string {
-  if (n === 1) return "جولة واحدة فقط";
-  return `أفضل ${n} جولات`;
+  return n === 1 ? "جولة واحدة فقط" : `أفضل ${n} جولات`;
 }
-
-// ─── Keyboards ────────────────────────────────────────────────────────────────
 
 function pickKeyboard(chatId: number) {
   return Markup.inlineKeyboard([[
@@ -62,7 +50,7 @@ function pickKeyboard(chatId: number) {
   ]]);
 }
 
-// ─── Round ────────────────────────────────────────────────────────────────────
+// ─── Round logic ──────────────────────────────────────────────────────────────
 
 async function startRound(bot: Telegraf, chatId: number): Promise<void> {
   const s = gameStates.get(chatId);
@@ -71,23 +59,34 @@ async function startRound(bot: Telegraf, chatId: number): Promise<void> {
   s.hostMove  = null;
   s.guestMove = null;
 
-  const hName = esc(dn(s.hostPlayer));
-  const gName = esc(dn(s.guestPlayer));
-  const label = s.totalRounds === 1
-    ? "الجولة الوحيدة"
-    : `الجولة <b>${s.currentRound}</b> من ${s.totalRounds}`;
-
-  const text =
-    `🎮 ${label}\n` +
-    `<b>${DIV}</b>\n\n` +
-    `${hName}  ⏳   ⚔️   ⏳  ${gName}\n\n` +
-    (s.currentRound > 1 ? `📊 ${s.hostScore} — ${s.guestScore}\n\n` : "") +
+  const hName = dn(s.hostPlayer);
+  const gName = dn(s.guestPlayer);
+  const caption =
+    `🎮 <b>الجولة ${s.currentRound}</b>  —  ${s.totalRounds === 1 ? "جولة واحدة" : `أفضل ${s.totalRounds} جولات`}\n` +
+    `<b>${esc(hName)}</b>  ⚔️  <b>${esc(gName)}</b>\n\n` +
     `<i>اختار حركتك بسرية 👇</i>`;
 
-  const sent = await bot.telegram.sendMessage(chatId, text, {
-    parse_mode: "HTML",
-    ...pickKeyboard(chatId),
-  }).catch(() => null);
+  let buf: Buffer | null = null;
+  try {
+    buf = await generateRpsRoundCard(
+      hName, gName,
+      s.currentRound, s.totalRounds,
+      s.hostScore, s.guestScore,
+    );
+  } catch { /* canvas fallback */ }
+
+  let sent: { message_id: number } | null = null;
+  if (buf) {
+    sent = await bot.telegram.sendPhoto(chatId, { source: buf }, {
+      caption, parse_mode: "HTML",
+      ...pickKeyboard(chatId),
+    }).catch(() => null);
+  } else {
+    sent = await bot.telegram.sendMessage(chatId, caption, {
+      parse_mode: "HTML",
+      ...pickKeyboard(chatId),
+    }).catch(() => null);
+  }
 
   if (sent) s.mainMsgId = sent.message_id;
 
@@ -95,9 +94,9 @@ async function startRound(bot: Telegraf, chatId: number): Promise<void> {
   s.roundTimeoutId = setTimeout(async () => {
     const ss = gameStates.get(chatId);
     if (!ss || ss.type !== "rps" || ss.phase !== "playing") return;
-    const moves: RpsMove[] = ["rock", "paper", "scissors"];
-    if (!ss.hostMove)  ss.hostMove  = moves[Math.floor(Math.random() * 3)];
-    if (!ss.guestMove) ss.guestMove = moves[Math.floor(Math.random() * 3)];
+    const pool: RpsMove[] = ["rock", "paper", "scissors"];
+    if (!ss.hostMove)  ss.hostMove  = pool[Math.floor(Math.random() * 3)];
+    if (!ss.guestMove) ss.guestMove = pool[Math.floor(Math.random() * 3)];
     await revealRound(bot, chatId);
   }, ROUND_TIMEOUT_MS);
 }
@@ -111,56 +110,62 @@ async function revealRound(bot: Telegraf, chatId: number): Promise<void> {
 
   const hMove = s.hostMove;
   const gMove = s.guestMove;
-  const hName = esc(dn(s.hostPlayer));
-  const gName = esc(dn(s.guestPlayer));
-  const hEmoji = MOVE_EMOJI[hMove];
-  const gEmoji = MOVE_EMOJI[gMove];
+  const hName = dn(s.hostPlayer);
+  const gName = dn(s.guestPlayer);
 
+  // Remove pick buttons from round card
   if (s.mainMsgId) {
     bot.telegram.editMessageReplyMarkup(chatId, s.mainMsgId, undefined, { inline_keyboard: [] }).catch(() => {});
+    s.mainMsgId = null;
   }
 
-  let resultLine = "";
-  let roundWinner: "host" | "guest" | "tie" = "tie";
+  let winnerSide: "host" | "guest" | "tie" = "tie";
+  let resultCaption = "";
 
   if (beats(hMove, gMove)) {
-    roundWinner = "host";
+    winnerSide = "host";
     s.hostScore++;
-    resultLine = `\n🏆 <b>${hName}</b> يأخذ الجولة!\n<i>${beatReason(hMove, gMove)}</i>`;
+    resultCaption = `🏆 <b>${esc(hName)}</b> يأخذ الجولة!\n<i>${beatReason(hMove, gMove)}</i>`;
   } else if (beats(gMove, hMove)) {
-    roundWinner = "guest";
+    winnerSide = "guest";
     s.guestScore++;
-    resultLine = `\n🏆 <b>${gName}</b> يأخذ الجولة!\n<i>${beatReason(gMove, hMove)}</i>`;
+    resultCaption = `🏆 <b>${esc(gName)}</b> يأخذ الجولة!\n<i>${beatReason(gMove, hMove)}</i>`;
   } else {
-    resultLine = `\n🤝 <b>تعادل!</b> نعيد الجولة...`;
+    resultCaption = `🤝 <b>تعادل!</b> — نعيد الجولة...`;
   }
 
-  const label = s.totalRounds === 1
-    ? "نتيجة الجولة الوحيدة"
-    : `نتيجة الجولة ${s.currentRound}`;
+  const fullCaption =
+    `${MOVE_EMOJI[hMove]} <b>${esc(hName)}</b>  ⚔️  <b>${esc(gName)}</b> ${MOVE_EMOJI[gMove]}\n\n` +
+    `${resultCaption}\n\n` +
+    `📊 ${s.hostScore} — ${s.guestScore}`;
 
-  const revealText =
-    `<b>${DIV}</b>\n` +
-    `🎮 <b>${label}</b>\n` +
-    `<b>${DIV}</b>\n\n` +
-    `     ${hName}\n` +
-    `  ${hEmoji}  <b>${MOVE_LABEL[hMove]}</b>     ⚔️     ${gEmoji}  <b>${MOVE_LABEL[gMove]}</b>\n` +
-    `     ${gName}\n` +
-    `${resultLine}\n\n` +
-    `📊 <b>${hName} ${s.hostScore} — ${s.guestScore} ${gName}</b>\n` +
-    `<b>${DIV}</b>`;
+  // Send reveal card
+  let buf: Buffer | null = null;
+  try {
+    buf = await generateRpsRevealCard(
+      hName, gName, hMove, gMove,
+      s.hostScore, s.guestScore,
+      s.currentRound, s.totalRounds, winnerSide,
+    );
+  } catch { /* canvas fallback */ }
 
-  await bot.telegram.sendMessage(chatId, revealText, { parse_mode: "HTML" }).catch(() => {});
+  if (buf) {
+    await bot.telegram.sendPhoto(chatId, { source: buf }, {
+      caption: fullCaption, parse_mode: "HTML",
+    }).catch(() => {});
+  } else {
+    await bot.telegram.sendMessage(chatId, fullCaption, { parse_mode: "HTML" }).catch(() => {});
+  }
 
   const winsNeeded = Math.ceil(s.totalRounds / 2);
   if (s.hostScore >= winsNeeded || s.guestScore >= winsNeeded) {
-    setTimeout(() => endGame(bot, chatId), REVEAL_DELAY_MS);
+    setTimeout(() => endGame(bot, chatId), NEXT_ROUND_DELAY);
     return;
   }
 
-  if (roundWinner !== "tie") s.currentRound++;
+  if (winnerSide !== "tie") s.currentRound++;
 
-  setTimeout(() => startRound(bot, chatId), REVEAL_DELAY_MS);
+  setTimeout(() => startRound(bot, chatId), NEXT_ROUND_DELAY);
 }
 
 async function endGame(bot: Telegraf, chatId: number): Promise<void> {
@@ -169,42 +174,45 @@ async function endGame(bot: Telegraf, chatId: number): Promise<void> {
 
   s.phase = "done";
 
-  const hName = esc(dn(s.hostPlayer));
-  const gName = esc(dn(s.guestPlayer));
+  const hName = dn(s.hostPlayer);
+  const gName = dn(s.guestPlayer);
 
-  let champion: string;
-  let loserName: string;
   let winnerObj: RpsPlayer;
-  let loserObj: RpsPlayer;
+  let loserObj:  RpsPlayer;
+  let winnerScore: number;
+  let loserScore:  number;
 
   if (s.hostScore > s.guestScore) {
-    champion = hName; loserName = gName;
     winnerObj = s.hostPlayer; loserObj = s.guestPlayer;
+    winnerScore = s.hostScore; loserScore = s.guestScore;
   } else {
-    champion = gName; loserName = hName;
     winnerObj = s.guestPlayer; loserObj = s.hostPlayer;
+    winnerScore = s.guestScore; loserScore = s.hostScore;
   }
 
-  const medals = ["🥇", "🥈"];
-  const isHost = winnerObj.id === s.hostPlayer.id;
+  const wName = dn(winnerObj);
+  const lName = dn(loserObj);
 
-  const endText =
-    `<b>${DIV}</b>\n` +
-    `🏆 <b>انتهت اللعبة!</b>\n` +
-    `<b>${DIV}</b>\n\n` +
-    `${medals[0]} <b>${champion}</b> — الفائز!\n` +
-    `${medals[1]} <b>${loserName}</b>\n\n` +
-    `📊 النتيجة النهائية:\n` +
-    `<b>${hName} ${s.hostScore} — ${s.guestScore} ${gName}</b>\n\n` +
-    `🎊 تهانينا <b>${champion}</b>! 🎊\n` +
-    `😤 <b>${loserName}</b> — جولة ثأر؟\n\n` +
-    `<i>اكتب /play لبدء لعبة جديدة</i>`;
+  const caption =
+    `🏆 <b>${esc(wName)}</b> يفوز باللعبة!\n` +
+    `📊 النتيجة: <b>${esc(hName)} ${s.hostScore} — ${s.guestScore} ${esc(gName)}</b>\n\n` +
+    `🎊 تهانينا! جولة ثأر؟  /rps`;
 
-  await bot.telegram.sendMessage(chatId, endText, { parse_mode: "HTML" }).catch(() => {});
+  let buf: Buffer | null = null;
+  try {
+    buf = await generateRpsWinnerCard(wName, lName, winnerScore, loserScore);
+  } catch { /* canvas fallback */ }
+
+  if (buf) {
+    await bot.telegram.sendPhoto(chatId, { source: buf }, {
+      caption, parse_mode: "HTML",
+    }).catch(() => {});
+  } else {
+    await bot.telegram.sendMessage(chatId, caption, { parse_mode: "HTML" }).catch(() => {});
+  }
 
   const toPlayer = (p: RpsPlayer): Player => ({
-    id: p.id,
-    username: p.username,
+    id: p.id, username: p.username,
     name: [p.firstName, p.lastName].filter(Boolean).join(" ") || (p.username ? `@${p.username}` : String(p.id)),
   });
 
@@ -242,21 +250,18 @@ export async function startRps(
 
   gameStates.set(chatId, s);
 
-  const hName = esc(firstName);
-
   const sent = await bot.telegram.sendMessage(
     chatId,
-    `🪨📄✂️ <b>حجر ورقة مقص</b>\n` +
-    `<b>${DIV}</b>\n\n` +
-    `⚔️ <b>${hName}</b> يفتح تحدياً!\n\n` +
+    `🪨📄✂️ <b>حجر ورقة مقص</b>\n\n` +
+    `⚔️ <b>${esc(firstName)}</b> يفتح تحدياً!\n\n` +
     `🎮 اختار عدد الجولات:`,
     {
       parse_mode: "HTML",
       ...Markup.inlineKeyboard([[
-        Markup.button.callback("1 جولة",  `rps:setn:1:${chatId}`),
-        Markup.button.callback("3 جولات", `rps:setn:3:${chatId}`),
-        Markup.button.callback("5 جولات", `rps:setn:5:${chatId}`),
-        Markup.button.callback("7 جولات", `rps:setn:7:${chatId}`),
+        Markup.button.callback("1️⃣",  `rps:setn:1:${chatId}`),
+        Markup.button.callback("3",   `rps:setn:3:${chatId}`),
+        Markup.button.callback("5",   `rps:setn:5:${chatId}`),
+        Markup.button.callback("7",   `rps:setn:7:${chatId}`),
       ]]),
     }
   ).catch(() => null);
@@ -283,25 +288,46 @@ export async function handleRpsSetRounds(
   s.totalRounds = n;
   await ctx.answerCbQuery(`✅ ${n === 1 ? "جولة واحدة" : n + " جولات"}!`).catch(() => {});
 
-  const hName = esc(dn(s.hostPlayer));
-
+  // Delete old text message
   if (s.mainMsgId) {
-    await bot.telegram.editMessageText(
-      chatId, s.mainMsgId, undefined,
-      `🪨📄✂️ <b>حجر ورقة مقص</b>\n` +
-      `<b>${DIV}</b>\n\n` +
-      `⚔️ <b>${hName}</b> يتحدى القروب!\n` +
-      `🏆 <b>${roundsLabel(n)}</b>\n\n` +
-      `<i>انتظار المنافس... ⏳</i>`,
-      {
-        parse_mode: "HTML",
-        ...Markup.inlineKeyboard([[
-          Markup.button.callback("⚔️ انضم للتحدي!", `rps:join:${chatId}`),
-        ]]),
-      }
-    ).catch(() => {});
+    bot.telegram.deleteMessage(chatId, s.mainMsgId).catch(() => {});
+    s.mainMsgId = null;
   }
 
+  const hName = dn(s.hostPlayer);
+
+  // Generate and send challenge card photo + join button
+  let buf: Buffer | null = null;
+  try { buf = await generateRpsChallengeCard(hName, n); } catch { /* fallback */ }
+
+  const joinKeyboard = Markup.inlineKeyboard([[
+    Markup.button.callback("⚔️ انضم للتحدي!", `rps:join:${chatId}`),
+  ]]);
+
+  let sent: { message_id: number } | null = null;
+  if (buf) {
+    sent = await bot.telegram.sendPhoto(chatId, { source: buf }, {
+      caption:
+        `🪨📄✂️ <b>حجر ورقة مقص</b>\n` +
+        `<b>${esc(hName)}</b> يتحدى القروب!\n` +
+        `🏆 <b>${roundsLabel(n)}</b>\n\n` +
+        `<i>انتظار المنافس... ⏳</i>`,
+      parse_mode: "HTML",
+      ...joinKeyboard,
+    }).catch(() => null);
+  } else {
+    sent = await bot.telegram.sendMessage(chatId,
+      `🪨📄✂️ <b>حجر ورقة مقص</b>\n` +
+      `<b>${esc(hName)}</b> يتحدى القروب!\n` +
+      `🏆 <b>${roundsLabel(n)}</b>\n\n` +
+      `<i>انتظار المنافس... ⏳</i>`,
+      { parse_mode: "HTML", ...joinKeyboard }
+    ).catch(() => null);
+  }
+
+  if (sent) s.mainMsgId = sent.message_id;
+
+  // Auto-cancel if no one joins
   s.cancelTimeoutId = setTimeout(() => {
     const ss = gameStates.get(chatId);
     if (ss?.type === "rps" && ss.phase === "waiting") {
@@ -333,18 +359,20 @@ export async function handleRpsJoin(
 
   s.guestPlayer = {
     id: uid,
-    username: ctx.from!.username,
+    username:  ctx.from!.username,
     firstName: ctx.from!.first_name ?? "",
-    lastName: ctx.from!.last_name ?? "",
+    lastName:  ctx.from!.last_name  ?? "",
   };
   s.phase = "playing";
 
   if (s.cancelTimeoutId) { clearTimeout(s.cancelTimeoutId); s.cancelTimeoutId = undefined; }
 
-  await ctx.answerCbQuery("✅ انضممت! حجر ورقة مقص! 🎮").catch(() => {});
+  await ctx.answerCbQuery("✅ انضممت! حجر ورقة مقص!").catch(() => {});
 
+  // Remove join button from challenge card
   if (s.mainMsgId) {
     bot.telegram.editMessageReplyMarkup(chatId, s.mainMsgId, undefined, { inline_keyboard: [] }).catch(() => {});
+    s.mainMsgId = null;
   }
 
   const hName = esc(dn(s.hostPlayer));
@@ -352,17 +380,14 @@ export async function handleRpsJoin(
 
   await bot.telegram.sendMessage(
     chatId,
-    `🎮 <b>اللعبة بدت!</b>\n` +
-    `<b>${DIV}</b>\n\n` +
-    `🪨 <b>${hName}</b>\n` +
-    `   ⚔️ ضد ⚔️\n` +
-    `📄 <b>${gName}</b>\n\n` +
+    `⚔️ <b>اللعبة بدت!</b>\n\n` +
+    `🔵 <b>${hName}</b>  ضد  <b>${gName}</b> 🟣\n` +
     `🏆 <b>${roundsLabel(s.totalRounds)}</b>\n\n` +
     `<i>حجر… ورقة… مقص! 🪨📄✂️</i>`,
     { parse_mode: "HTML" }
   ).catch(() => {});
 
-  setTimeout(() => startRound(bot, chatId), 2000);
+  setTimeout(() => startRound(bot, chatId), 2200);
 }
 
 export async function handleRpsMove(
@@ -381,10 +406,7 @@ export async function handleRpsMove(
   const isHost  = uid === s.hostPlayer.id;
   const isGuest = uid === s.guestPlayer.id;
 
-  if (!isHost && !isGuest) {
-    await ctx.answerCbQuery("❌ أنت مش من اللاعبين!").catch(() => {});
-    return;
-  }
+  if (!isHost && !isGuest) { await ctx.answerCbQuery("❌ أنت مش من اللاعبين!").catch(() => {}); return; }
   if (isHost  && s.hostMove)  { await ctx.answerCbQuery(`${MOVE_EMOJI[s.hostMove]} اخترت مسبقاً!`).catch(() => {}); return; }
   if (isGuest && s.guestMove) { await ctx.answerCbQuery(`${MOVE_EMOJI[s.guestMove]} اخترت مسبقاً!`).catch(() => {}); return; }
 
@@ -393,22 +415,30 @@ export async function handleRpsMove(
 
   await ctx.answerCbQuery(`${MOVE_EMOJI[move]} اخترت ${MOVE_LABEL[move]}! انتظر خصمك... 🤫`).catch(() => {});
 
+  // Update round card caption to show who picked (✅/⏳)
   if (s.mainMsgId && s.guestPlayer) {
-    const hName   = esc(dn(s.hostPlayer));
-    const gName   = esc(dn(s.guestPlayer));
-    const hStatus = s.hostMove  ? "✅" : "⏳";
-    const gStatus = s.guestMove ? "✅" : "⏳";
-    const label   = s.totalRounds === 1 ? "الجولة الوحيدة" : `الجولة <b>${s.currentRound}</b> من ${s.totalRounds}`;
+    const hName  = esc(dn(s.hostPlayer));
+    const gName  = esc(dn(s.guestPlayer));
+    const hSt    = s.hostMove  ? "✅" : "⏳";
+    const gSt    = s.guestMove ? "✅" : "⏳";
+    const lbl    = s.totalRounds === 1 ? "الجولة الوحيدة" : `الجولة ${s.currentRound}`;
 
-    bot.telegram.editMessageText(
-      chatId, s.mainMsgId, undefined,
-      `🎮 ${label}\n` +
-      `<b>${DIV}</b>\n\n` +
-      `${hName}  ${hStatus}   ⚔️   ${gStatus}  ${gName}\n\n` +
+    const newCaption =
+      `🎮 <b>${lbl}</b>\n` +
+      `<b>${hName}</b>  ${hSt}   ⚔️   ${gSt}  <b>${gName}</b>\n\n` +
       (s.currentRound > 1 ? `📊 ${s.hostScore} — ${s.guestScore}\n\n` : "") +
-      `<i>اختار حركتك بسرية 👇</i>`,
-      { parse_mode: "HTML", ...pickKeyboard(chatId) }
-    ).catch(() => {});
+      `<i>اختار حركتك بسرية 👇</i>`;
+
+    bot.telegram.editMessageCaption(chatId, s.mainMsgId, undefined, newCaption, {
+      parse_mode: "HTML",
+      ...pickKeyboard(chatId),
+    }).catch(() => {
+      // fallback: maybe it's a text message
+      bot.telegram.editMessageText(chatId, s.mainMsgId!, undefined, newCaption, {
+        parse_mode: "HTML",
+        ...pickKeyboard(chatId),
+      }).catch(() => {});
+    });
   }
 
   if (s.hostMove && s.guestMove) {
