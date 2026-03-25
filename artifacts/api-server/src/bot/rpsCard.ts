@@ -72,16 +72,7 @@ function drawDiagonalLines(ctx: CanvasRenderingContext2D, x: number, y: number, 
   ctx.restore();
 }
 
-function hexPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
-  ctx.beginPath();
-  for (let i = 0; i < 6; i++) {
-    const a = (Math.PI / 3) * i - Math.PI / 6;
-    const x = cx + r * Math.cos(a);
-    const y = cy + r * Math.sin(a);
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-  }
-  ctx.closePath();
-}
+// (hexPath removed — rock now uses organic bezier shape)
 
 // horizontal glowing line
 function hLine(ctx: CanvasRenderingContext2D, y: number, color: string, alpha = 0.7) {
@@ -99,34 +90,69 @@ function drawRock(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: n
   ctx.save();
   ctx.globalAlpha = a;
   ctx.shadowColor = col;
-  ctx.shadowBlur   = 40;
+  ctx.shadowBlur = 38;
+  ctx.lineJoin = "round";
 
-  // outer halo rings
-  ctx.strokeStyle = col.replace("#", "rgba(") + "44)";
-  ctx.lineWidth = 6;
-  hexPath(ctx, cx, cy, size);
+  const s = size;
+
+  // ── outer glow halo ──────────────────────────────────────────────────
+  ctx.strokeStyle = col + "22";
+  ctx.lineWidth = s * 0.28;
+  ctx.beginPath();
+  ctx.arc(cx, cy - s * 0.04, s * 0.78, 0, Math.PI * 2);
   ctx.stroke();
 
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = col + "88";
-  hexPath(ctx, cx, cy, size * 0.72);
-  ctx.stroke();
+  // ── organic rock / boulder shape ─────────────────────────────────────
+  // Irregular 9-point polygon with varied radii to mimic stone texture
+  const radii = [0.98, 0.82, 0.95, 0.78, 0.90, 0.80, 0.93, 0.75, 0.88];
+  const pts: [number, number][] = radii.map((r, i) => {
+    const angle = (Math.PI * 2 * i / radii.length) - Math.PI / 2;
+    return [cx + Math.cos(angle) * s * r, cy + Math.sin(angle) * s * r];
+  });
 
-  // inner solid
-  ctx.fillStyle = col + "28";
-  hexPath(ctx, cx, cy, size * 0.55);
+  // fill
+  ctx.fillStyle = col + "20";
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  ctx.closePath();
   ctx.fill();
 
-  ctx.strokeStyle = col;
-  ctx.lineWidth = 2;
-  hexPath(ctx, cx, cy, size * 0.55);
+  // border
+  ctx.strokeStyle = col + "AA";
+  ctx.lineWidth = 2.8;
   ctx.stroke();
 
-  // core dot
+  // ── surface cracks / texture ─────────────────────────────────────────
+  ctx.strokeStyle = col + "50";
+  ctx.lineWidth = 1.6;
+
+  // main crack
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.28, cy - s * 0.55);
+  ctx.lineTo(cx,             cy - s * 0.10);
+  ctx.lineTo(cx + s * 0.18,  cy + s * 0.42);
+  ctx.stroke();
+
+  // secondary crack
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.35, cy - s * 0.30);
+  ctx.lineTo(cx + s * 0.50, cy + s * 0.18);
+  ctx.stroke();
+
+  // subtle highlight arc at top-left
+  ctx.strokeStyle = col + "30";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx - s * 0.25, cy - s * 0.35, s * 0.30, -Math.PI * 0.8, -Math.PI * 0.15);
+  ctx.stroke();
+
+  // ── glowing core dot ─────────────────────────────────────────────────
   ctx.shadowBlur = 20;
   ctx.fillStyle = col;
   ctx.beginPath();
-  ctx.arc(cx, cy, size * 0.13, 0, Math.PI * 2);
+  ctx.arc(cx, cy, s * 0.11, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.restore();
@@ -189,41 +215,121 @@ function drawScissors(ctx: CanvasRenderingContext2D, cx: number, cy: number, siz
   ctx.save();
   ctx.globalAlpha = a;
   ctx.shadowColor = col;
-  ctx.shadowBlur = 28;
-  ctx.lineCap = "round";
+  ctx.shadowBlur = 30;
+  ctx.lineCap  = "round";
+  ctx.lineJoin = "round";
 
-  const blades = [{ angle: -38 }, { angle: 38 }];
-  for (const b of blades) {
-    const r  = b.angle * Math.PI / 180;
-    const dx = Math.cos(r) * size * 0.82;
-    const dy = Math.sin(r) * size * 0.82;
+  const s = size;
 
-    ctx.lineWidth = size * 0.30;
-    ctx.strokeStyle = col + "22";
-    ctx.beginPath();
-    ctx.moveTo(cx - dx, cy - dy);
-    ctx.lineTo(cx + dx, cy + dy);
-    ctx.stroke();
+  // ── pivot point (center of scissors crossing) ─────────────────────────
+  // Scissors layout: blades point UP, handles point DOWN
+  const pivY  = cy - s * 0.12;
 
-    ctx.lineWidth = size * 0.10;
-    ctx.strokeStyle = col;
-    ctx.beginPath();
-    ctx.moveTo(cx - dx, cy - dy);
-    ctx.lineTo(cx + dx, cy + dy);
-    ctx.stroke();
-  }
+  // blade angle from vertical axis
+  const bAngle = 34 * Math.PI / 180;
+  const bLen   = s * 0.78;
 
-  ctx.shadowBlur = 20;
-  ctx.fillStyle = col;
+  // tips of blades
+  const t1 = { x: cx - Math.sin(bAngle) * bLen, y: pivY - Math.cos(bAngle) * bLen };
+  const t2 = { x: cx + Math.sin(bAngle) * bLen, y: pivY - Math.cos(bAngle) * bLen };
+
+  // ── blade glow ────────────────────────────────────────────────────────
+  ctx.lineWidth = s * 0.20;
+  ctx.strokeStyle = col + "1A";
+  ctx.beginPath(); ctx.moveTo(t1.x, t1.y); ctx.lineTo(cx, pivY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(t2.x, t2.y); ctx.lineTo(cx, pivY); ctx.stroke();
+
+  // ── blade bodies as filled tapered triangles ──────────────────────────
+  const bW = s * 0.068;
+  const pW = s * 0.040;
+
+  // Blade 1 (left)
+  ctx.fillStyle = col + "30";
   ctx.beginPath();
-  ctx.arc(cx, cy, size * 0.13, 0, Math.PI * 2);
+  ctx.moveTo(t1.x - pW * Math.cos(bAngle), t1.y + pW * Math.sin(bAngle));
+  ctx.lineTo(t1.x + pW * Math.cos(bAngle), t1.y - pW * Math.sin(bAngle));
+  ctx.lineTo(cx + bW * Math.cos(bAngle + Math.PI / 2), pivY + bW * Math.sin(bAngle + Math.PI / 2));
+  ctx.lineTo(cx - bW * Math.cos(bAngle + Math.PI / 2), pivY - bW * Math.sin(bAngle + Math.PI / 2));
+  ctx.closePath();
   ctx.fill();
 
-  ctx.strokeStyle = col + "66";
-  ctx.lineWidth = 1.5;
+  // Blade 2 (right)
   ctx.beginPath();
-  ctx.arc(cx, cy, size * 0.26, 0, Math.PI * 2);
+  ctx.moveTo(t2.x - pW * Math.cos(bAngle), t2.y - pW * Math.sin(bAngle));
+  ctx.lineTo(t2.x + pW * Math.cos(bAngle), t2.y + pW * Math.sin(bAngle));
+  ctx.lineTo(cx + bW * Math.cos(bAngle + Math.PI / 2), pivY + bW * Math.sin(bAngle + Math.PI / 2));
+  ctx.lineTo(cx - bW * Math.cos(bAngle + Math.PI / 2), pivY - bW * Math.sin(bAngle + Math.PI / 2));
+  ctx.closePath();
+  ctx.fill();
+
+  // Blade 1 outline
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  ctx.moveTo(t1.x, t1.y);
+  ctx.lineTo(cx,   pivY);
   ctx.stroke();
+
+  // Blade 2 outline
+  ctx.beginPath();
+  ctx.moveTo(t2.x, t2.y);
+  ctx.lineTo(cx,   pivY);
+  ctx.stroke();
+
+  // ── handle shafts (below pivot) ───────────────────────────────────────
+  const hAngle  = 28 * Math.PI / 180;
+  const shaftL  = s * 0.38;
+  const ringR   = s * 0.21;
+
+  const h1c = { x: cx - Math.sin(hAngle) * shaftL, y: pivY + Math.cos(hAngle) * shaftL };
+  const h2c = { x: cx + Math.sin(hAngle) * shaftL, y: pivY + Math.cos(hAngle) * shaftL };
+
+  // shaft glow
+  ctx.lineWidth = s * 0.14;
+  ctx.strokeStyle = col + "1A";
+  ctx.beginPath(); ctx.moveTo(cx, pivY); ctx.lineTo(h1c.x, h1c.y - ringR * 0.55); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, pivY); ctx.lineTo(h2c.x, h2c.y - ringR * 0.55); ctx.stroke();
+
+  // shaft line
+  ctx.lineWidth = 2.4;
+  ctx.strokeStyle = col;
+  ctx.beginPath(); ctx.moveTo(cx, pivY); ctx.lineTo(h1c.x, h1c.y - ringR * 0.55); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, pivY); ctx.lineTo(h2c.x, h2c.y - ringR * 0.55); ctx.stroke();
+
+  // ── handle rings ──────────────────────────────────────────────────────
+  const ring1y = h1c.y + ringR * 0.45;
+  const ring2y = h2c.y + ringR * 0.45;
+
+  ctx.fillStyle   = col + "1E";
+  ctx.strokeStyle = col;
+  ctx.lineWidth   = 2.2;
+
+  ctx.beginPath();
+  ctx.arc(h1c.x, ring1y, ringR, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(h2c.x, ring2y, ringR, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+
+  // inner ring cut-out hint
+  ctx.strokeStyle = col + "50";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.arc(h1c.x, ring1y, ringR * 0.56, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(h2c.x, ring2y, ringR * 0.56, 0, Math.PI * 2); ctx.stroke();
+
+  // ── pivot rivet ───────────────────────────────────────────────────────
+  ctx.shadowBlur = 18;
+  ctx.fillStyle  = col;
+  ctx.beginPath();
+  ctx.arc(cx, pivY, s * 0.11, 0, Math.PI * 2);
+  ctx.fill();
+
+  // rivet inner shadow
+  ctx.fillStyle = "rgba(0,0,0,0.45)";
+  ctx.beginPath();
+  ctx.arc(cx, pivY, s * 0.055, 0, Math.PI * 2);
+  ctx.fill();
 
   ctx.restore();
 }
