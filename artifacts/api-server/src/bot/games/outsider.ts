@@ -284,7 +284,7 @@ export async function startOutsider(bot: Telegraf, ctx: Context) {
     votes: new Map(),
     hostId: uid,
     selectedCategories: initialCats,
-    joinMsgId: null,
+    joinMsgId: undefined,
   };
   gameStates.set(chatId, s);
 
