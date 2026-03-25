@@ -94,9 +94,15 @@ async function startRound(bot: Telegraf, chatId: number): Promise<void> {
   s.roundTimeoutId = setTimeout(async () => {
     const ss = gameStates.get(chatId);
     if (!ss || ss.type !== "rps" || ss.phase !== "playing") return;
+    // Guard: if both moves already set, revealRound is already in progress
+    if (ss.hostMove && ss.guestMove) return;
     const pool: RpsMove[] = ["rock", "paper", "scissors"];
     if (!ss.hostMove)  ss.hostMove  = pool[Math.floor(Math.random() * 3)];
     if (!ss.guestMove) ss.guestMove = pool[Math.floor(Math.random() * 3)];
+    await bot.telegram.sendMessage(chatId,
+      `⏰ <b>انتهى الوقت!</b> — الحركات تُختار تلقائياً...`,
+      { parse_mode: "HTML" }
+    ).catch(() => {});
     await revealRound(bot, chatId);
   }, ROUND_TIMEOUT_MS);
 }
@@ -108,8 +114,12 @@ async function revealRound(bot: Telegraf, chatId: number): Promise<void> {
 
   if (s.roundTimeoutId) { clearTimeout(s.roundTimeoutId); s.roundTimeoutId = undefined; }
 
+  // Snapshot and immediately clear moves — prevents any double-call from timeout
   const hMove = s.hostMove;
   const gMove = s.guestMove;
+  s.hostMove  = null;
+  s.guestMove = null;
+
   const hName = dn(s.hostPlayer);
   const gName = dn(s.guestPlayer);
 
@@ -327,7 +337,7 @@ export async function handleRpsSetRounds(
 
   if (sent) s.mainMsgId = sent.message_id;
 
-  // Auto-cancel if no one joins
+  // Auto-cancel if no one joins (set unconditionally regardless of photo success)
   s.cancelTimeoutId = setTimeout(() => {
     const ss = gameStates.get(chatId);
     if (ss?.type === "rps" && ss.phase === "waiting") {
@@ -413,15 +423,21 @@ export async function handleRpsMove(
   if (isHost)  s.hostMove  = move;
   else         s.guestMove = move;
 
-  await ctx.answerCbQuery(`${MOVE_EMOJI[move]} اخترت ${MOVE_LABEL[move]}! انتظر خصمك... 🤫`).catch(() => {});
+  const bothPicked = !!(s.hostMove && s.guestMove);
 
-  // Update round card caption to show who picked (✅/⏳)
-  if (s.mainMsgId && s.guestPlayer) {
-    const hName  = esc(dn(s.hostPlayer));
-    const gName  = esc(dn(s.guestPlayer));
-    const hSt    = s.hostMove  ? "✅" : "⏳";
-    const gSt    = s.guestMove ? "✅" : "⏳";
-    const lbl    = s.totalRounds === 1 ? "الجولة الوحيدة" : `الجولة ${s.currentRound}`;
+  await ctx.answerCbQuery(
+    bothPicked
+      ? `${MOVE_EMOJI[move]} اخترت ${MOVE_LABEL[move]}! تكتشف الآن... 🎲`
+      : `${MOVE_EMOJI[move]} اخترت ${MOVE_LABEL[move]}! انتظر خصمك... 🤫`
+  ).catch(() => {});
+
+  if (!bothPicked && s.mainMsgId && s.guestPlayer) {
+    // Only ONE player has picked — update status line in round card caption
+    const hName = esc(dn(s.hostPlayer));
+    const gName = esc(dn(s.guestPlayer));
+    const hSt   = s.hostMove  ? "✅" : "⏳";
+    const gSt   = s.guestMove ? "✅" : "⏳";
+    const lbl   = s.totalRounds === 1 ? "الجولة الوحيدة" : `الجولة ${s.currentRound}`;
 
     const newCaption =
       `🎮 <b>${lbl}</b>\n` +
@@ -429,19 +445,19 @@ export async function handleRpsMove(
       (s.currentRound > 1 ? `📊 ${s.hostScore} — ${s.guestScore}\n\n` : "") +
       `<i>اختار حركتك بسرية 👇</i>`;
 
-    bot.telegram.editMessageCaption(chatId, s.mainMsgId, undefined, newCaption, {
+    const msgId = s.mainMsgId;
+    bot.telegram.editMessageCaption(chatId, msgId, undefined, newCaption, {
       parse_mode: "HTML",
       ...pickKeyboard(chatId),
     }).catch(() => {
-      // fallback: maybe it's a text message
-      bot.telegram.editMessageText(chatId, s.mainMsgId!, undefined, newCaption, {
+      bot.telegram.editMessageText(chatId, msgId, undefined, newCaption, {
         parse_mode: "HTML",
         ...pickKeyboard(chatId),
       }).catch(() => {});
     });
   }
 
-  if (s.hostMove && s.guestMove) {
+  if (bothPicked) {
     await revealRound(bot, chatId);
   }
 }
