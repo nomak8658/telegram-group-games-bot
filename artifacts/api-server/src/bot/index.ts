@@ -690,8 +690,7 @@ export async function launchBot(): Promise<void> {
       if (data.startsWith("couch:join:")) {
         const parts   = data.split(":");
         const chatId  = parseInt(parts[2], 10);
-        const teamIdx = parseInt(parts[3], 10) as 0 | 1;
-        if (!isNaN(chatId) && (teamIdx === 0 || teamIdx === 1)) { await handleCouchJoin(bot, ctx, chatId, teamIdx); return; }
+        if (!isNaN(chatId)) { await handleCouchJoin(bot, ctx, chatId, 0); return; }
       }
       if (data.startsWith("couch:start:")) {
         const chatId = parseInt(data.slice("couch:start:".length), 10);
