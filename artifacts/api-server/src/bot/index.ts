@@ -40,6 +40,10 @@ import {
 import {
   startRps, handleRpsSetRounds, handleRpsJoin, handleRpsMove,
 } from "./games/rps.js";
+import {
+  startCouch, handleCouchSetRounds, handleCouchJoin, handleCouchStart,
+  handleCouchText, handleCouchChoose,
+} from "./games/couch.js";
 import type { UnoCard, RpsMove } from "./state.js";
 import { generateTopCard } from "./topCard.js";
 
@@ -304,6 +308,12 @@ export async function launchBot(): Promise<void> {
     if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
     const f = ctx.from;
     startRps(bot, ctx.chat.id, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
+  });
+
+  bot.command(["couch", "كنبة", "كنبه", "sofa"], (ctx) => {
+    if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
+    const f = ctx.from;
+    startCouch(bot, ctx.chat.id, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
   });
 
   bot.command("menvsmen", (ctx) => {
@@ -670,6 +680,32 @@ export async function launchBot(): Promise<void> {
         }
       }
 
+      // ── تحدي الكنبة ────────────────────────────────────────────────────────
+      if (data.startsWith("couch:rounds:")) {
+        const parts   = data.split(":");
+        const chatId  = parseInt(parts[2], 10);
+        const rounds  = parseInt(parts[3], 10);
+        if (!isNaN(chatId) && !isNaN(rounds)) { await handleCouchSetRounds(bot, ctx, chatId, rounds); return; }
+      }
+      if (data.startsWith("couch:join:")) {
+        const parts   = data.split(":");
+        const chatId  = parseInt(parts[2], 10);
+        const teamIdx = parseInt(parts[3], 10) as 0 | 1;
+        if (!isNaN(chatId) && (teamIdx === 0 || teamIdx === 1)) { await handleCouchJoin(bot, ctx, chatId, teamIdx); return; }
+      }
+      if (data.startsWith("couch:start:")) {
+        const chatId = parseInt(data.slice("couch:start:".length), 10);
+        if (!isNaN(chatId)) { await handleCouchStart(bot, ctx, chatId); return; }
+      }
+      if (data.startsWith("couch:choose:")) {
+        const parts  = data.split(":");
+        const chatId = parseInt(parts[2], 10);
+        const action = parts[3] as "kick" | "take";
+        if (!isNaN(chatId) && (action === "kick" || action === "take")) {
+          await handleCouchChoose(bot, ctx, chatId, action); return;
+        }
+      }
+
       await ctx.answerCbQuery().catch(() => {});
     } catch (e) {
       logger.error({ err: e }, "callback error");
@@ -741,6 +777,14 @@ export async function launchBot(): Promise<void> {
       if (cs?.type === "circle" && cs.phase === "playing" && cs.players.has(uid)) {
         handleCircleText(bot, chatId, uid, text, Date.now());
         // don't return — still process other handlers (trustbreak victim resolve, etc.)
+      }
+    }
+
+    // ── تحدي الكنبة — text handler ───────────────────────────────────────────────
+    {
+      const cs = gameStates.get(chatId);
+      if (cs?.type === "couch" && (cs.phase === "playing" || cs.phase === "sofa_active")) {
+        handleCouchText(bot, chatId, uid, text);
       }
     }
 
