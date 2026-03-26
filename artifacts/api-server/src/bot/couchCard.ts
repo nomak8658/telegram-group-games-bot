@@ -325,41 +325,68 @@ export async function generateCouchQuestionCard(
 
   drawBg(ctx, P.a, P.b);
 
-  const BH = 74;
-  drawScoreBar(ctx, scoreA, scoreB, "السؤال " + questionNum, "اجلس على الكنبة!", P.gold);
+  const col  = P.gold;
+  const midX = W / 2;
+  const BH   = 74;
+  drawScoreBar(ctx, scoreA, scoreB, "السؤال " + questionNum, "اجلس على الكنبة!", col);
 
-  // Center sofa (empty — nobody sitting yet)
-  const sofaCX = W / 2, sofaCY = H / 2 + 44;
-  drawSofa(ctx, sofaCX, sofaCY, 1.0);
-
-  // Question box — full width below score bar
-  const QX = 20, QW = W - 40, midX = W / 2;
   const qLabels: Record<string, string> = {
     speed: "تحدي السرعة", emoji: "تحدي الايموجي",
     tf: "صح ام خطأ",     number: "تحدي الارقام", text: "سؤال",
   };
-  const qIcons: Record<string, string> = {
-    speed: "<<", emoji: "★", tf: "?", number: "#", text: "؟",
-  };
-  const col    = P.gold;
   const qLabel = qLabels[questionType] ?? "سؤال";
-  const qIcon  = qIcons[questionType]  ?? "؟";
 
-  // Type pill — centered top
-  box(ctx, midX - 120, BH + 10, 240, 36, 18, col + "22", col + "88", 1.5);
-  T(ctx, qIcon + "  " + qLabel, midX, BH + 34, "bold 15px CairoBold", col, "center", col, 10);
+  // ── Question block  (BH → 330) ───────────────────────────────────────────
+  const QB_TOP = BH + 10, QB_H = 246;
 
-  // Question text — large, centered, above sofa
-  const questionY = BH + 62;
+  // bg panel
+  clipR(ctx, 20, QB_TOP, W - 40, QB_H, 14, () => {
+    const g = ctx.createLinearGradient(0, QB_TOP, 0, QB_TOP + QB_H);
+    g.addColorStop(0, "rgba(255,184,0,0.10)"); g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g; ctx.fillRect(20, QB_TOP, W - 40, QB_H);
+  });
+  box(ctx, 20, QB_TOP, W - 40, QB_H, 14, "", col + "44", 1.5);
+
+  // type pill inside block
+  box(ctx, midX - 108, QB_TOP + 12, 216, 34, 17, col + "20", col + "88", 1.5);
+  T(ctx, qLabel, midX, QB_TOP + 34, "bold 15px CairoBold", col, "center", col, 10);
+
+  // question text — vertically centered in remaining block space
+  const textAreaTop = QB_TOP + 56;
+  const textAreaH   = QB_H - 66;
+  // measure approximate lines
+  ctx.font = "bold 34px CairoBold";
+  const words = questionText.split(" ");
+  let lines = 1, testLine = "";
+  for (const w of words) {
+    const t = testLine ? testLine + " " + w : w;
+    if (ctx.measureText(t).width > W - 100 && testLine) { lines++; testLine = w; } else { testLine = t; }
+  }
+  const lineH    = 50;
+  const totalTH  = lines * lineH;
+  const textStartY = textAreaTop + (textAreaH - totalTH) / 2 + lineH;
+
   ctx.save();
-  ctx.font = "bold 30px CairoBold"; ctx.fillStyle = P.white; ctx.textAlign = "center";
-  ctx.shadowColor = col; ctx.shadowBlur = 18;
-  wrapText(ctx, questionText, midX, questionY, QW - 60, 46);
+  ctx.font = "bold 34px CairoBold"; ctx.fillStyle = P.white; ctx.textAlign = "center";
+  ctx.shadowColor = col; ctx.shadowBlur = 20;
+  wrapText(ctx, questionText, midX, textStartY, W - 100, lineH);
   ctx.restore();
 
-  // Bottom hint strip
-  box(ctx, QX, H - 54, QW, 38, 10, "rgba(255,184,0,0.10)", col + "55", 1);
-  T(ctx, "اول واحد يجاوب صح يقدر يجلس على الكنبة!", midX, H - 28, "15px Cairo", P.light, "center");
+  // thin gold line under question block
+  const sepY = QB_TOP + QB_H + 6;
+  const sepG = ctx.createLinearGradient(0, 0, W, 0);
+  sepG.addColorStop(0, "transparent"); sepG.addColorStop(0.3, col + "AA");
+  sepG.addColorStop(0.7, col + "AA"); sepG.addColorStop(1, "transparent");
+  ctx.fillStyle = sepG; ctx.fillRect(0, sepY, W, 1.5);
+
+  // ── Sofa (smaller, bottom section) ─────────────────────────────────────
+  const sofaY = sepY + 30;
+  const sofaCX = midX, sofaCY = sofaY + 110;
+  drawSofa(ctx, sofaCX, sofaCY, 0.82);
+
+  // hint strip at very bottom
+  box(ctx, 20, H - 52, W - 40, 36, 10, "rgba(255,184,0,0.08)", col + "44", 1);
+  T(ctx, "اول واحد يجاوب صح يجلس على الكنبة!", midX, H - 27, "14px Cairo", P.light, "center");
 
   return canvas.toBuffer("image/png") as unknown as Buffer;
 }
@@ -426,7 +453,79 @@ export async function generateCouchSofaCard(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 4. generateCouchWinCard  (two people on sofa)
+// 4. generateCouchBothOnSofaCard  (teammate joined → two on sofa = SCORE)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function generateCouchBothOnSofaCard(
+  sofaName: string, helperName: string, team: 0 | 1,
+  scoreA: number, scoreB: number,
+): Promise<Buffer> {
+  await ensureFonts();
+  const cv     = await getCanvas();
+  const canvas = cv.createCanvas(W, H);
+  const ctx    = canvas.getContext("2d") as unknown as Ctx;
+
+  const col  = TEAM_COLOR[team];
+  const dark = TEAM_DARK[team];
+  const isBlue = team === 0;
+  drawBg(ctx, isBlue ? col : "", isBlue ? "" : col);
+
+  // Celebration rays
+  ctx.save(); ctx.strokeStyle = col + "22"; ctx.lineWidth = 2;
+  for (let i = 0; i < 22; i++) {
+    const a = (i / 22) * Math.PI * 2;
+    ctx.beginPath(); ctx.moveTo(W / 2, H * 0.52);
+    ctx.lineTo(W / 2 + Math.cos(a) * 660, H * 0.52 + Math.sin(a) * 660); ctx.stroke();
+  }
+  ctx.restore();
+  const rG = ctx.createRadialGradient(W / 2, H * 0.52, 0, W / 2, H * 0.52, 430);
+  rG.addColorStop(0, col + "38"); rG.addColorStop(1, "transparent");
+  ctx.fillStyle = rG; ctx.fillRect(0, 0, W, H);
+
+  // Top banner
+  ctx.save();
+  const bG = ctx.createLinearGradient(0, 0, W, 118);
+  bG.addColorStop(0, dark); bG.addColorStop(0.5, col + "99"); bG.addColorStop(1, dark);
+  ctx.fillStyle = bG;
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(W, 0); ctx.lineTo(W, 98); ctx.lineTo(0, 122); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = col; ctx.fillRect(0, 0, 5, 122); ctx.fillRect(W - 5, 0, 5, 98);
+  ctx.restore();
+
+  T(ctx, "قعدوا على الكنبة معاً!", W / 2, 58, "bold 46px CairoBold", P.white, "center", col, 26);
+  T(ctx, TEAM_LABEL[team] + " — نقطة!", W / 2, 95, "18px Cairo", col, "center");
+
+  // Score
+  const newScoreA = team === 0 ? scoreA : scoreA;
+  const newScoreB = team === 1 ? scoreB : scoreB;
+  T(ctx, String(newScoreA), isBlue ? W / 2 - 70 : W / 2 + 70, 158, "bold 52px CairoBold", isBlue ? col : P.dim, "center", isBlue ? col : "", 20);
+  T(ctx, "—", W / 2, 158, "bold 40px CairoBold", P.dim, "center");
+  T(ctx, String(newScoreB), isBlue ? W / 2 + 70 : W / 2 - 70, 158, "bold 52px CairoBold", isBlue ? P.dim : col, "center", isBlue ? "" : col, 20);
+
+  // Sofa + 2 people
+  const sofaCX = W / 2, sofaCY = H / 2 + 60;
+  drawSofa(ctx, sofaCX, sofaCY, 1.2);
+  drawTwoPeople(ctx, sofaCX, sofaCY, 1.2, col);
+
+  // Name badges
+  const nb = (name: string, side: "left" | "right") => {
+    const nx = side === "left" ? W / 2 - 160 : W / 2 + 160;
+    box(ctx, nx - 80, H - 62, 160, 46, 10, col + "22", col + "AA", 2);
+    T(ctx, lim(name, 12), nx, H - 32, "bold 18px CairoBold", P.white, "center", col, 8);
+  };
+  nb(sofaName, "left"); nb(helperName, "right");
+
+  // Confetti
+  const CC2 = [col, P.gold, P.white, col + "BB"];
+  for (let i = 0; i < 80; i++) {
+    ctx.fillStyle = CC2[i % CC2.length] + Math.floor(Math.random() * 60 + 30).toString(16).padStart(2, "0");
+    ctx.beginPath(); ctx.arc(Math.random() * W, Math.random() * H, Math.random() * 4 + 1, 0, Math.PI * 2); ctx.fill();
+  }
+
+  return canvas.toBuffer("image/png") as unknown as Buffer;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. generateCouchWinCard  (two people on sofa)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function generateCouchWinCard(
