@@ -279,7 +279,7 @@ function drawScoreBadge(
 
   ctx.font = "12px Cairo";
   ctx.fillStyle = color + "99";
-  ctx.fillText(`من ${target}`, x + w / 2, y + 72);
+  ctx.fillText("نقطة", x + w / 2, y + 72);
 
   ctx.restore();
 }
@@ -314,7 +314,7 @@ export async function generateCouchStartCard(
   ctx.font      = "17px Cairo";
   ctx.fillStyle = "rgba(200,180,255,0.60)";
   ctx.textAlign = "center";
-  ctx.fillText(`أول فريق يصل لـ ${targetScore} جولات يفوز!`, W / 2, 100);
+  ctx.fillText("أول فريق يكمل التحدي يفوز — لا حد للجولات!", W / 2, 100);
 
   glowLine(ctx, 112, "#8844ff");
 
