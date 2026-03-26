@@ -199,11 +199,18 @@ function teamPlayers(s: CouchState, idx: 0 | 1): string {
 }
 
 function lobbyText(s: CouchState): string {
+  const total = s.teams[0].size + s.teams[1].size;
+  const allPlayers = [
+    ...[...s.teams[0].values()],
+    ...[...s.teams[1].values()],
+  ];
+  const playerList = allPlayers.length
+    ? allPlayers.map(p => `• ${esc(dnC(p))}`).join("\n")
+    : "<i>لا أحد بعد...</i>";
   return (
     `🛋️ <b>تحدي الكنبة</b>\n\n` +
-    `🔵 <b>الفريق الأزرق (${s.teams[0].size}):</b>\n${teamPlayers(s, 0)}\n\n` +
-    `🔴 <b>الفريق الأحمر (${s.teams[1].size}):</b>\n${teamPlayers(s, 1)}\n\n` +
-    `<i>اضغط انضم — التوزيع عشوائي تلقائي  •  لازم فريقين فيهم 2+ لاعبين</i>`
+    `👥 <b>المنضمون (${total}):</b>\n${playerList}\n\n` +
+    `<i>التوزيع للفرق عشوائي ويُكشف عند البدء  •  يحتاج 4+ لاعبين</i>`
   );
 }
 
@@ -310,8 +317,7 @@ export async function handleCouchJoin(
   const assigned = autoAssignTeam(s, from.id);
   s.teams[assigned].set(from.id, player);
 
-  const teamName = assigned === 0 ? "الفريق الأزرق" : "الفريق الأحمر";
-  await ctx.answerCbQuery(`انضممت للـ ${teamName}!`).catch(() => {});
+  await ctx.answerCbQuery("انضممت للعبة! الفريق يُكشف عند البدء").catch(() => {});
 
   // Update lobby
   if (s.joinMsgId) {
