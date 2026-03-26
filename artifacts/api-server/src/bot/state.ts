@@ -315,12 +315,14 @@ export interface CouchQuestion {
 
 export interface CouchState {
   type: "couch";
-  phase: "joining" | "playing" | "sofa_active" | "choosing" | "done";
+  phase: "joining" | "playing" | "sofa_active" | "double_sofa" | "choosing" | "done";
   chatId: number;
   hostId: number;
   teams: [Map<number, CouchPlayer>, Map<number, CouchPlayer>];
   sofaPlayerId: number | null;
   sofaTeamIdx: 0 | 1 | null;
+  sofaPlayer2Id: number | null;   // second sofa player (double_sofa phase)
+  sofaTeam2Idx: 0 | 1 | null;
   currentQ: CouchQuestion | null;
   roundSeq: number;
   scores: [number, number];
