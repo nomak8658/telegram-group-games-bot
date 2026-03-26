@@ -8,6 +8,7 @@ import {
   generateCouchStartCard,
   generateCouchQuestionCard,
   generateCouchSofaCard,
+  generateCouchBothOnSofaCard,
   generateCouchWinCard,
 } from "../couchCard.js";
 
@@ -160,6 +161,8 @@ const ALL_QUESTIONS: CouchQuestion[] = [
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+function lim(s: string, n = 16) { return s.length > n ? s.slice(0, n) + ".." : s; }
+
 function dnC(p: CouchPlayer): string {
   const full = [p.firstName, p.lastName].filter(Boolean).join(" ");
   return full || (p.username ? `@${p.username}` : String(p.id));
@@ -253,7 +256,7 @@ export async function startCouch(
     currentQ: null,
     roundSeq: 0,
     scores: [0, 0],
-    targetScore: 1, // first team to complete sofa sequence wins
+    targetScore: 5, // first team to reach 5 points wins
     choosingPlayerId: null,
     choosingTeamIdx: null,
     questionPool: [],
@@ -264,7 +267,9 @@ export async function startCouch(
     choosingMsgId: undefined,
     mvpKills: new Map(),
   };
-  s.teams[0].set(hostId, { id: hostId, username: hostUsername, firstName: hostFirst, lastName: hostLast });
+  // Randomly assign host to either team
+  const hostTeam: 0 | 1 = Math.random() < 0.5 ? 0 : 1;
+  s.teams[hostTeam].set(hostId, { id: hostId, username: hostUsername, firstName: hostFirst, lastName: hostLast });
   gameStates.set(chatId, s);
 
   const msg = await bot.telegram.sendMessage(chatId,
@@ -366,8 +371,8 @@ export function handleCouchText(
     onFirstCorrect(bot, chatId, uid, teamIdx, player);
   } else if (s.phase === "sofa_active") {
     if (teamIdx === s.sofaTeamIdx) {
-      // Sofa team answered → point!
-      onSofaTeamScores(bot, chatId, uid, player);
+      // Sofa team answered → sit together + score!
+      void onSofaTeamScores(bot, chatId, uid, player);
     } else {
       // Opponent answered → choosing
       onOpponentAnswers(bot, chatId, uid, player, teamIdx);
@@ -423,7 +428,9 @@ export async function handleCouchChoose(
     const prevName = prevSofa ? dnC(prevSofa) : "";
 
     await bot.telegram.sendMessage(chatId,
-      `🛋️ <b>${esc(dnC(chooser))}</b> جلس على الكنبة${prevName ? ` بدل ${esc(prevName)}` : ""}!\n\n<i>فريقه يحتاج يجاوب السؤال القادم...</i>`,
+      `🛋️ <b>${esc(dnC(chooser))}</b> طرد <b>${prevName ? esc(prevName) : "اللاعب"}</b> وجلس مكانه على الكنبة!\n\n` +
+      `📣 يا ${teamDisplay(s.choosingTeamIdx!)} — زميلكم ينتظركم!\n` +
+      `<i>أجاوبوا الصح تقعدوا معه وتسجلون!</i>`,
       { parse_mode: "HTML" }
     ).catch(() => {});
 
@@ -461,7 +468,7 @@ async function launchCouch(bot: Telegraf, chatId: number): Promise<void> {
     `🛋️ <b>تحدي الكنبة — انطلقنا!</b>\n\n` +
     `🔵 <b>الأزرق:</b> ${teamANames.map(esc).join("، ")}\n` +
     `🔴 <b>الأحمر:</b> ${teamBNames.map(esc).join("، ")}\n\n` +
-    `🏆 أول فريق يكمل التحدي يفوز — ما في حد للجولات!`;
+    `🏆 أول فريق يصل <b>${s.targetScore}</b> نقاط يفوز!`;
 
   if (buf) {
     await bot.telegram.sendPhoto(chatId, { source: buf }, { caption: startCaption, parse_mode: "HTML" }).catch(() => {
@@ -472,12 +479,12 @@ async function launchCouch(bot: Telegraf, chatId: number): Promise<void> {
   }
 
   await bot.telegram.sendMessage(chatId,
-    `📜 <b>قواعد سريعة:</b>\n` +
+    `📜 <b>القواعد:</b>\n` +
     `• أجاوب الصح أول → تجلس على الكنبة 🛋️\n` +
     `• اللي على الكنبة ما يقدر يجاوب\n` +
-    `• زميلك يجاوب الصح → فريقك يسجّل نقطة 🎉\n` +
-    `• الخصم يجاوب → يختارون: يطردونك أو يجلسون مكانك\n` +
-    `• مؤقت لكل سؤال ⏱️`,
+    `• زميلك يجاوب الصح → يجلس معك على الكنبة = نقطة لفريقكم! 🎉\n` +
+    `• الخصم يجاوب → يختارون: يطردونك من الكنبة أو يجلسون مكانك\n` +
+    `• أول فريق يوصل ${s.targetScore} نقاط يفوز 🏆`,
     { parse_mode: "HTML" }
   ).catch(() => {});
 
@@ -610,18 +617,19 @@ function onFirstCorrect(
   s.phase        = "sofa_active";
 
   bot.telegram.sendMessage(chatId,
-    `🛋️ <b>${esc(dnC(player))}</b> (${teamDisplay(teamIdx)}) جلس على الكنبة!\n` +
-    `<i>فريقه يحتاج يجاوب السؤال القادم...</i>`,
+    `🛋️ <b>${esc(dnC(player))}</b> جلس على الكنبة! (${teamDisplay(teamIdx)})\n\n` +
+    `📣 يا ${teamDisplay(teamIdx)} — زميلكم ينتظركم!\n` +
+    `<i>أجاوب السؤال القادم تجلس معه وتسجلون نقطة!</i>`,
     { parse_mode: "HTML" }
   ).catch(() => {});
 
   setTimeout(() => askSofaQuestion(bot, chatId), 1_000);
 }
 
-function onSofaTeamScores(
+async function onSofaTeamScores(
   bot: Telegraf, chatId: number,
   uid: number, player: CouchPlayer,
-): void {
+): Promise<void> {
   const s = gameStates.get(chatId);
   if (!s || s.type !== "couch" || s.phase !== "sofa_active") return;
 
@@ -629,20 +637,35 @@ function onSofaTeamScores(
   if (s.timerHandle) { clearTimeout(s.timerHandle); s.timerHandle = undefined; }
   s.roundSeq++;
 
-  const sofaPlayer   = getPlayer(s, s.sofaPlayerId!)!;
-  const scoringTeam  = s.sofaTeamIdx!;
+  const sofaPlayer  = getPlayer(s, s.sofaPlayerId!)!;
+  const scoringTeam = s.sofaTeamIdx!;
   s.scores[scoringTeam]++;
 
-  // Track MVP (sofa + scorer combo)
+  // Track MVP
   const mvpId = s.sofaPlayerId!;
   s.mvpKills.set(mvpId, (s.mvpKills.get(mvpId) ?? 0) + 1);
 
-  bot.telegram.sendMessage(chatId,
-    `🎉 <b>${esc(dnC(sofaPlayer))}</b> على الكنبة + <b>${esc(dnC(player))}</b> أجاب!\n` +
-    `🏆 <b>${teamDisplay(scoringTeam)}</b> يسجّل!\n\n` +
-    `🔵 ${s.scores[0]}  —  ${s.scores[1]} 🔴`,
-    { parse_mode: "HTML" }
-  ).catch(() => {});
+  // Send "both on sofa together" card
+  let buf2: Buffer | null = null;
+  try {
+    buf2 = await generateCouchBothOnSofaCard(
+      dnC(sofaPlayer), dnC(player), scoringTeam,
+      s.scores[0], s.scores[1],
+    );
+  } catch { /* fallback */ }
+
+  const scoreCaption =
+    `🛋️🛋️ <b>${esc(dnC(sofaPlayer))}</b> + <b>${esc(dnC(player))}</b> قعدوا على الكنبة معاً!\n` +
+    `🏆 <b>${teamDisplay(scoringTeam)}</b> سجّل!\n\n` +
+    `🔵 ${s.scores[0]}  —  ${s.scores[1]} 🔴`;
+
+  if (buf2) {
+    await bot.telegram.sendPhoto(chatId, { source: buf2 }, { caption: scoreCaption, parse_mode: "HTML" }).catch(async () => {
+      await bot.telegram.sendMessage(chatId, scoreCaption, { parse_mode: "HTML" }).catch(() => {});
+    });
+  } else {
+    await bot.telegram.sendMessage(chatId, scoreCaption, { parse_mode: "HTML" }).catch(() => {});
+  }
 
   // Reset sofa
   s.sofaPlayerId = null;
@@ -655,7 +678,7 @@ function onSofaTeamScores(
   }
 
   s.phase = "playing";
-  setTimeout(() => askQuestion(bot, chatId), 2_000);
+  setTimeout(() => askQuestion(bot, chatId), 2_200);
 }
 
 function onOpponentAnswers(
@@ -677,12 +700,12 @@ function onOpponentAnswers(
 
   bot.telegram.sendMessage(chatId,
     `⚡ <b>${esc(dnC(player))}</b> (${teamDisplay(teamIdx)}) أجاب صح!\n\n` +
-    `اختار خلال <b>15 ثانية</b>:`,
+    `اختاروا خلال <b>15 ثانية</b>:`,
     {
       parse_mode: "HTML",
       ...Markup.inlineKeyboard([
-        [Markup.button.callback(`💥 اطردوا ${dnC(sofaPlayer)} من الكنبة`, `couch:choose:${chatId}:kick`)],
-        [Markup.button.callback(`🛋️ اجلس ${dnC(player)} على الكنبة`, `couch:choose:${chatId}:take`)],
+        [Markup.button.callback(`💥 اطردوا ${lim(dnC(sofaPlayer), 14)} من الكنبة`, `couch:choose:${chatId}:kick`)],
+        [Markup.button.callback(`🛋️ ${lim(dnC(player), 14)} يجلس بدل ${lim(dnC(sofaPlayer), 12)}`, `couch:choose:${chatId}:take`)],
       ]),
     }
   ).then(msg => {
