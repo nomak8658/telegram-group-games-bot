@@ -295,7 +295,49 @@ export interface RpsState {
   roundTimeoutId?: ReturnType<typeof setTimeout>;
 }
 
-export type GameState = MenVsMenState | TrustBreakState | MafiaState | OutsiderState | CircleState | BombState | StopwatchState | UnoState | RpsState;
+// ─── Couch Challenge (تحدي الكنبة) ───────────────────────────────────────────
+
+export interface CouchPlayer {
+  id: number;
+  username?: string;
+  firstName: string;
+  lastName: string;
+}
+
+export type CouchQuestionType = "text" | "speed" | "emoji";
+
+export interface CouchQuestion {
+  text: string;
+  answers: string[];
+  type: CouchQuestionType;
+  timeMs: number;
+}
+
+export interface CouchState {
+  type: "couch";
+  phase: "setup" | "joining" | "playing" | "sofa_active" | "choosing" | "done";
+  chatId: number;
+  hostId: number;
+  teams: [Map<number, CouchPlayer>, Map<number, CouchPlayer>];
+  sofaPlayerId: number | null;
+  sofaTeamIdx: 0 | 1 | null;
+  currentQ: CouchQuestion | null;
+  roundSeq: number;
+  scores: [number, number];
+  targetScore: number;
+  choosingPlayerId: number | null;
+  choosingTeamIdx: 0 | 1 | null;
+  questionPool: CouchQuestion[];
+  questionNum: number;
+  mvpKills: Map<number, number>;
+  setupMsgId?: number;
+  joinMsgId?: number;
+  qMsgId?: number;
+  choosingMsgId?: number;
+  timerHandle?: ReturnType<typeof setTimeout>;
+}
+
+export type GameState = MenVsMenState | TrustBreakState | MafiaState | OutsiderState | CircleState | BombState | StopwatchState | UnoState | RpsState | CouchState;
 
 export const gameStates = new Map<number, GameState>();
 export const privateUserToGame = new Map<number, number>();
@@ -448,6 +490,8 @@ export function clearGame(chatId: number): void {
   } else if (s.type === "rps") {
     if (s.roundTimeoutId)  clearTimeout(s.roundTimeoutId);
     if (s.cancelTimeoutId) clearTimeout(s.cancelTimeoutId);
+  } else if (s.type === "couch") {
+    if (s.timerHandle) clearTimeout(s.timerHandle);
   }
 
   gameStates.delete(chatId);
