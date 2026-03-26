@@ -369,7 +369,10 @@ export function handleCouchText(
   // Sofa player cannot answer
   if (s.sofaPlayerId === uid) return;
 
-  if (!checkAnswer(text, s.currentQ!)) return; // wrong answer
+  // No question active yet (between phase transitions)
+  if (!s.currentQ) return;
+
+  if (!checkAnswer(text, s.currentQ)) return; // wrong answer
 
   // ── Correct answer! ────────────────────────────────────────────────────
   if (s.phase === "playing") {
@@ -547,7 +550,7 @@ async function askQuestion(bot: Telegraf, chatId: number): Promise<void> {
     const ss = gameStates.get(chatId);
     if (!ss || ss.type !== "couch" || ss.phase !== "playing") return;
     // Time up — new question
-    const correct = ss.currentQ!.answers[0] ? `\n\n💡 الإجابة: <b>${esc(ss.currentQ!.answers[0])}</b>` : "";
+    const correct = ss.currentQ?.answers[0] ? `\n\n💡 الإجابة: <b>${esc(ss.currentQ.answers[0])}</b>` : "";
     await bot.telegram.sendMessage(chatId,
       `⏰ انتهى الوقت! ما أجاب أحد.${correct}`,
       { parse_mode: "HTML" }
@@ -595,7 +598,7 @@ async function askSofaQuestion(bot: Telegraf, chatId: number): Promise<void> {
   startTimer(bot, chatId, q.timeMs + 5000, async () => {
     const ss = gameStates.get(chatId);
     if (!ss || ss.type !== "couch" || ss.phase !== "sofa_active") return;
-    const correct = ss.currentQ!.answers[0] ? `\n\n💡 الإجابة: <b>${esc(ss.currentQ!.answers[0])}</b>` : "";
+    const correct = ss.currentQ?.answers[0] ? `\n\n💡 الإجابة: <b>${esc(ss.currentQ.answers[0])}</b>` : "";
     await bot.telegram.sendMessage(chatId,
       `⏰ انتهى الوقت! الكنبة تفضى والجولة تُعاد.${correct}`,
       { parse_mode: "HTML" }
@@ -621,6 +624,7 @@ function onFirstCorrect(
   s.sofaPlayerId = uid;
   s.sofaTeamIdx  = teamIdx;
   s.phase        = "sofa_active";
+  s.currentQ     = null; // lock out any stale answers from the previous question
 
   bot.telegram.sendMessage(chatId,
     `🛋️ <b>${esc(dnC(player))}</b> جلس على الكنبة! (${teamDisplay(teamIdx)})\n\n` +
@@ -646,6 +650,9 @@ async function onSofaTeamScores(
   const sofaPlayer  = getPlayer(s, s.sofaPlayerId!)!;
   const scoringTeam = s.sofaTeamIdx!;
   s.scores[scoringTeam]++;
+
+  // Lock out stale answers immediately
+  s.currentQ = null;
 
   // Track MVP
   const mvpId = s.sofaPlayerId!;
@@ -701,6 +708,7 @@ function onOpponentAnswers(
   s.phase             = "choosing";
   s.choosingPlayerId  = uid;
   s.choosingTeamIdx   = teamIdx;
+  s.currentQ          = null; // no answers during choosing phase
 
   const sofaPlayer = getPlayer(s, s.sofaPlayerId!)!;
 
