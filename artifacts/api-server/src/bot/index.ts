@@ -58,7 +58,8 @@ function menuMsg() {
     `💣 <b>القنبلة المتنقلة</b>\n<i>قنبلة تنتقل بين اللاعبين — واللي تنفجر عليه يطلع!</i>\n\n` +
     `⏰ <b>سلك الموت الموقوت</b>\n<i>عداد تنازلي — اضغط أقرب ما تقدر من الصفر دون أن تصله!</i>\n\n` +
     `🃏 <b>أونو</b>\n<i>تخلص من أوراقك أول — لكن قُل UNO قبل الورقة الأخيرة!</i>\n\n` +
-    `🪨 <b>حجر ورقة مقص</b>\n<i>تحدي مباشر بين لاعبين — الأسرع والأذكى يفوز!</i>`
+    `🪨 <b>حجر ورقة مقص</b>\n<i>تحدي مباشر بين لاعبين — الأسرع والأذكى يفوز!</i>\n\n` +
+    `🛋️ <b>تحدي الكنبة</b>\n<i>فريقان عشوائيان — اجلس على الكنبة وزميلك يجاوب — أول فريق يكمل يفوز!</i>`
   );
 }
 
@@ -73,6 +74,7 @@ function menuKeyboard(chatId: number) {
     [Markup.button.callback("⏰  سلك الموت الموقوت",       `menu:sw:${chatId}`)],
     [Markup.button.callback("🃏  أونو",                    `menu:uno:${chatId}`)],
     [Markup.button.callback("🪨  حجر ورقة مقص",           `menu:rps:${chatId}`)],
+    [Markup.button.callback("🛋️  تحدي الكنبة",            `menu:couch:${chatId}`)],
   ]);
 }
 
@@ -462,6 +464,17 @@ export async function launchBot(): Promise<void> {
         ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
         const fr = ctx.from;
         startRps(bot, chatId, fr.id, fr.username, fr.first_name ?? "", fr.last_name ?? "");
+        return;
+      }
+
+      if (data.startsWith("menu:couch:")) {
+        const chatId = parseInt(data.slice("menu:couch:".length), 10);
+        if (isNaN(chatId)) return;
+        if (gameStates.has(chatId)) { await ctx.answerCbQuery("⚠️ في لعبة شغالة!").catch(() => {}); return; }
+        await ctx.answerCbQuery("🛋️").catch(() => {});
+        ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
+        const fr = ctx.from;
+        startCouch(bot, chatId, fr.id, fr.username, fr.first_name ?? "", fr.last_name ?? "");
         return;
       }
 
