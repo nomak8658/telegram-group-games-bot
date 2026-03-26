@@ -13,107 +13,148 @@ import {
 // ─── Question Bank ──────────────────────────────────────────────────────────
 
 const ALL_QUESTIONS: CouchQuestion[] = [
-  // ── General Knowledge ───────────────────────────────────────────────────
-  { text: "ما هي عاصمة المملكة العربية السعودية؟", answers: ["الرياض", "رياض"], type: "text", timeMs: 20000 },
-  { text: "ما هي عاصمة الإمارات العربية المتحدة؟", answers: ["أبوظبي", "ابوظبي", "أبو ظبي", "ابو ظبي"], type: "text", timeMs: 20000 },
-  { text: "ما هي عاصمة مصر؟", answers: ["القاهرة", "قاهرة"], type: "text", timeMs: 18000 },
-  { text: "ما هي عاصمة فرنسا؟", answers: ["باريس", "paris"], type: "text", timeMs: 18000 },
-  { text: "ما هي عاصمة اليابان؟", answers: ["طوكيو", "توكيو", "tokyo"], type: "text", timeMs: 18000 },
-  { text: "ما هي عاصمة الكويت؟", answers: ["الكويت", "مدينة الكويت"], type: "text", timeMs: 18000 },
-  { text: "ما هي عاصمة البحرين؟", answers: ["المنامة", "manama"], type: "text", timeMs: 20000 },
-  { text: "ما هي عاصمة قطر؟", answers: ["الدوحة", "doha"], type: "text", timeMs: 18000 },
-  { text: "ما هي عاصمة سلطنة عُمان؟", answers: ["مسقط", "muscat"], type: "text", timeMs: 20000 },
-  { text: "ما هي عاصمة الأردن؟", answers: ["عمان", "amman"], type: "text", timeMs: 18000 },
-  { text: "أطول نهر في العالم؟", answers: ["النيل", "نهر النيل"], type: "text", timeMs: 20000 },
-  { text: "أكبر كوكب في المجموعة الشمسية؟", answers: ["المشتري", "jupiter"], type: "text", timeMs: 20000 },
-  { text: "أسرع حيوان بري في العالم؟", answers: ["الفهد", "cheetah"], type: "text", timeMs: 20000 },
-  { text: "أطول حيوان في العالم؟", answers: ["الزرافة", "giraffe"], type: "text", timeMs: 20000 },
-  { text: "أكبر محيط في العالم؟", answers: ["الهادئ", "المحيط الهادئ", "المحيط الهادي", "pacific"], type: "text", timeMs: 20000 },
-  { text: "أكبر دولة في العالم من حيث المساحة؟", answers: ["روسيا", "russia"], type: "text", timeMs: 18000 },
-  { text: "من اخترع الهاتف؟", answers: ["غراهام بيل", "بيل", "graham bell", "alexander graham bell"], type: "text", timeMs: 20000 },
-  { text: "أول رجل وصل إلى سطح القمر؟", answers: ["نيل أرمسترونج", "أرمسترونج", "ارمسترونج", "armstrong", "neil armstrong"], type: "text", timeMs: 20000 },
-  { text: "كم عدد ألوان قوس قزح؟", answers: ["7", "سبعة"], type: "text", timeMs: 14000 },
-  { text: "كم عدد أيام الأسبوع؟", answers: ["7", "سبعة"], type: "text", timeMs: 12000 },
-  { text: "كم عدد أشهر السنة؟", answers: ["12", "اثنا عشر", "اثني عشر"], type: "text", timeMs: 12000 },
-  { text: "في أي دولة يقع برج إيفل؟", answers: ["فرنسا", "france"], type: "text", timeMs: 15000 },
-  { text: "ما هو أكبر حيوان في العالم؟", answers: ["الحوت الأزرق", "حوت أزرق", "الحوت", "blue whale"], type: "text", timeMs: 20000 },
-  { text: "من اخترع المصباح الكهربائي؟", answers: ["إديسون", "ادیسون", "thomas edison", "edison"], type: "text", timeMs: 20000 },
-  { text: "ما هي عاصمة ألمانيا؟", answers: ["برلين", "berlin"], type: "text", timeMs: 18000 },
-  { text: "كم يوماً يأخذ القمر ليكتمل؟", answers: ["28", "29", "30"], type: "text", timeMs: 22000 },
-  { text: "ما هو أصغر كوكب في المجموعة الشمسية؟", answers: ["عطارد", "mercury"], type: "text", timeMs: 22000 },
-  { text: "ما هي الدولة الأكثر سكاناً في العالم؟", answers: ["الهند", "india"], type: "text", timeMs: 22000 },
-  { text: "في أي دولة يقع نهر الأمازون؟", answers: ["البرازيل", "brazil"], type: "text", timeMs: 22000 },
-  { text: "ما عدد أضلاع المثلث؟", answers: ["3", "ثلاثة"], type: "text", timeMs: 12000 },
-  { text: "ما عدد أضلاع المسدس؟", answers: ["6", "ستة"], type: "text", timeMs: 14000 },
-  { text: "كم ثانية في الدقيقة الواحدة؟", answers: ["60", "ستون"], type: "text", timeMs: 12000 },
-  { text: "كم دقيقة في الساعة؟", answers: ["60", "ستون"], type: "text", timeMs: 12000 },
-  { text: "ما هو أكبر بلد في القارة الأفريقية مساحةً؟", answers: ["الجزائر", "algeria"], type: "text", timeMs: 22000 },
-  { text: "في أي قارة تقع مصر؟", answers: ["أفريقيا", "africa"], type: "text", timeMs: 16000 },
-  // ── Math ─────────────────────────────────────────────────────────────────
-  { text: "🔢 كم ناتج: 7 × 7؟", answers: ["49"], type: "text", timeMs: 14000 },
-  { text: "🔢 كم ناتج: 5 × 9؟", answers: ["45"], type: "text", timeMs: 14000 },
-  { text: "🔢 كم ناتج: 100 ÷ 4؟", answers: ["25"], type: "text", timeMs: 14000 },
-  { text: "🔢 كم ناتج: 8 × 8؟", answers: ["64"], type: "text", timeMs: 14000 },
-  { text: "🔢 كم ناتج: 6 × 7؟", answers: ["42"], type: "text", timeMs: 14000 },
-  { text: "🔢 كم ناتج: 50 + 77؟", answers: ["127"], type: "text", timeMs: 15000 },
-  { text: "🔢 كم ناتج: 200 - 87؟", answers: ["113"], type: "text", timeMs: 16000 },
-  { text: "🔢 الجذر التربيعي لـ 144؟", answers: ["12"], type: "text", timeMs: 18000 },
-  { text: "🔢 كم ناتج: 3 × 3 × 3؟", answers: ["27"], type: "text", timeMs: 16000 },
-  { text: "🔢 كم ناتج: 15 × 4؟", answers: ["60"], type: "text", timeMs: 14000 },
-  { text: "🔢 كم ناتج: 9 × 9؟", answers: ["81"], type: "text", timeMs: 14000 },
-  { text: "🔢 كم ناتج: 13 × 5؟", answers: ["65"], type: "text", timeMs: 15000 },
-  { text: "🔢 كم ناتج: 144 ÷ 12؟", answers: ["12"], type: "text", timeMs: 18000 },
-  { text: "🔢 كم ناتج: 17 + 28؟", answers: ["45"], type: "text", timeMs: 15000 },
-  // ── Sports ───────────────────────────────────────────────────────────────
-  { text: "⚽ كم لاعباً في الفريق الواحد بكرة القدم؟", answers: ["11", "أحد عشر"], type: "text", timeMs: 14000 },
-  { text: "⚽ كأس العالم يُقام كل كم سنة؟", answers: ["4", "أربع", "أربعة"], type: "text", timeMs: 14000 },
-  { text: "⚽ في أي دولة أُقيم كأس العالم 2022؟", answers: ["قطر", "qatar"], type: "text", timeMs: 18000 },
-  { text: "🏆 كم مرة فازت البرازيل بكأس العالم؟", answers: ["5", "خمس", "خمسة"], type: "text", timeMs: 20000 },
-  { text: "⚽ ما هو نادي ليونيل ميسي الحالي؟", answers: ["إنتر ميامي", "inter miami", "انتر ميامي", "ميامي"], type: "text", timeMs: 20000 },
-  { text: "🏀 كم نقطة تساوي رمية الثلاثة في كرة السلة؟", answers: ["3", "ثلاثة"], type: "text", timeMs: 14000 },
-  { text: "⚽ ما اسم البطولة الأوروبية لكرة القدم؟", answers: ["يورو", "يويفا يورو", "euro", "uefa euro"], type: "text", timeMs: 18000 },
-  // ── Entertainment ────────────────────────────────────────────────────────
-  { text: "🎬 اسم بطل فيلم هاري بوتر؟", answers: ["هاري بوتر", "هاري", "harry", "harry potter"], type: "text", timeMs: 18000 },
-  { text: "📱 شركة iPhone من تصنع؟", answers: ["أبل", "apple"], type: "text", timeMs: 14000 },
-  { text: "🎵 جنسية المغني جاستن بيبر؟", answers: ["كندية", "كندا", "canadian", "canada"], type: "text", timeMs: 20000 },
-  { text: "🎬 شركة ديزني أسسها من؟", answers: ["والت ديزني", "والت", "walt disney", "walt"], type: "text", timeMs: 20000 },
-  { text: "🎮 ما اسم الشخصية الرئيسية في لعبة Super Mario؟", answers: ["ماريو", "mario"], type: "text", timeMs: 18000 },
-  { text: "📺 ما هي الشركة المصنعة لـ PlayStation؟", answers: ["سوني", "sony"], type: "text", timeMs: 16000 },
-  { text: "🎬 ما اسم الفيلم الذي يتكلم عن دمى تلعب؟", answers: ["توي ستوري", "toy story"], type: "text", timeMs: 20000 },
-  { text: "🎵 اسم الفرقة الأشهر في التاريخ من بريطانيا؟", answers: ["بيتلز", "البيتلز", "beatles", "the beatles"], type: "text", timeMs: 22000 },
-  { text: "📱 ما هي شركة صاحبة تطبيق تيك توك؟", answers: ["بايت دانس", "bytedance", "بايتدانس"], type: "text", timeMs: 22000 },
-  // ── Speed Challenges ─────────────────────────────────────────────────────
-  { text: "⚡ أسرع واحد يكتب: كنبة", answers: ["كنبة"], type: "speed", timeMs: 16000 },
-  { text: "⚡ أسرع واحد يكتب: برودة", answers: ["برودة"], type: "speed", timeMs: 16000 },
-  { text: "⚡ أسرع واحد يكتب: طماطم", answers: ["طماطم"], type: "speed", timeMs: 16000 },
-  { text: "⚡ أسرع واحد يكتب: مقلاة", answers: ["مقلاة"], type: "speed", timeMs: 16000 },
-  { text: "⚡ أسرع واحد يكتب: برتقال", answers: ["برتقال"], type: "speed", timeMs: 16000 },
-  { text: "⚡ أسرع واحد يكتب: شنطة", answers: ["شنطة"], type: "speed", timeMs: 16000 },
-  { text: "⚡ أسرع واحد يكتب: موزة", answers: ["موزة", "موز"], type: "speed", timeMs: 16000 },
-  { text: "⚡ أسرع واحد يكتب: زلابية", answers: ["زلابية"], type: "speed", timeMs: 18000 },
-  { text: "⚡ أسرع واحد يكتب: بطيخ", answers: ["بطيخ"], type: "speed", timeMs: 14000 },
-  { text: "⚡ أسرع واحد يكتب: مغامرة", answers: ["مغامرة"], type: "speed", timeMs: 18000 },
-  { text: "⚡ أسرع واحد يكتب: قهوة", answers: ["قهوة"], type: "speed", timeMs: 14000 },
-  { text: "⚡ أسرع واحد يكتب: طائرة", answers: ["طائرة", "طيارة"], type: "speed", timeMs: 16000 },
-  { text: "⚡ أسرع واحد يكتب: فراشة", answers: ["فراشة"], type: "speed", timeMs: 16000 },
-  { text: "⚡ أسرع واحد يكتب: مكيف", answers: ["مكيف"], type: "speed", timeMs: 14000 },
-  { text: "⚡ أسرع واحد يكتب: شاشة", answers: ["شاشة"], type: "speed", timeMs: 14000 },
-  { text: "⚡ أسرع واحد يكتب: تلفزيون", answers: ["تلفزيون", "تلفاز"], type: "speed", timeMs: 18000 },
-  { text: "⚡ أسرع واحد يكتب: مصلحة", answers: ["مصلحة"], type: "speed", timeMs: 20000 },
-  // ── Emoji Challenges ─────────────────────────────────────────────────────
-  { text: "🎭 أرسل إيموجي النار الآن!", answers: ["🔥"], type: "emoji", timeMs: 13000 },
-  { text: "🎭 أرسل إيموجي الكنبة الآن!", answers: ["🛋️", "🛋"], type: "emoji", timeMs: 13000 },
-  { text: "🎭 أرسل إيموجي الضحكة الآن!", answers: ["😂", "🤣", "😹"], type: "emoji", timeMs: 13000 },
-  { text: "🎭 أرسل إيموجي الكرة الآن!", answers: ["⚽", "🏀", "🏈", "⚾", "🎾", "🏐", "🏉"], type: "emoji", timeMs: 13000 },
-  { text: "🎭 أرسل إيموجي القلب الآن!", answers: ["❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "💗", "💕", "💓", "💞", "💝", "♥️", "🩷", "🩵", "🩶"], type: "emoji", timeMs: 13000 },
-  { text: "🎭 أرسل إيموجي النجمة الآن!", answers: ["⭐", "🌟", "✨", "💫", "🌠"], type: "emoji", timeMs: 13000 },
-  { text: "🎭 أرسل إيموجي الهاتف الآن!", answers: ["📱", "☎️", "📞", "📲"], type: "emoji", timeMs: 13000 },
-  { text: "🎭 أرسل إيموجي السيارة الآن!", answers: ["🚗", "🚕", "🚙", "🏎️", "🚓", "🚑", "🚒"], type: "emoji", timeMs: 13000 },
-  { text: "🎭 أرسل إيموجي الطيارة الآن!", answers: ["✈️", "🛩️", "✈"], type: "emoji", timeMs: 13000 },
-  { text: "🎭 أرسل إيموجي الفاكهة الآن!", answers: ["🍎", "🍏", "🍊", "🍋", "🍌", "🍉", "🍇", "🍓", "🫐", "🍑", "🍒", "🥭", "🍍", "🥥", "🥝", "🍅"], type: "emoji", timeMs: 13000 },
-  { text: "🎭 أرسل إيموجي الحيوان الآن!", answers: ["🐶", "🐱", "🐭", "🐰", "🦊", "🐻", "🐼", "🐨", "🐯", "🦁", "🐮", "🐷", "🐸", "🐵", "🦓", "🦒", "🐘", "🦋", "🐢"], type: "emoji", timeMs: 13000 },
-  { text: "🎭 أرسل إيموجي الطعام الآن!", answers: ["🍕", "🍔", "🌮", "🌯", "🍜", "🍣", "🍱", "🍛", "🍝", "🥗", "🍗", "🍖", "🥩", "🍞", "🧀", "🥚", "🍳", "🥞", "🧇", "🌭", "🍟"], type: "emoji", timeMs: 13000 },
-  { text: "🎭 أرسل إيموجي الموسيقى الآن!", answers: ["🎵", "🎶", "🎸", "🎹", "🎺", "🎻", "🥁", "🎤", "🎧"], type: "emoji", timeMs: 13000 },
+  // ── معرفة عامة سهلة ──────────────────────────────────────────────────────
+  { text: "ما هي عاصمة المملكة العربية السعودية؟", answers: ["الرياض", "رياض"], type: "text", timeMs: 18000 },
+  { text: "ما هي عاصمة الإمارات؟", answers: ["ابوظبي", "أبوظبي", "أبو ظبي", "ابو ظبي"], type: "text", timeMs: 18000 },
+  { text: "ما هي عاصمة مصر؟", answers: ["القاهرة", "قاهرة"], type: "text", timeMs: 16000 },
+  { text: "ما هي عاصمة فرنسا؟", answers: ["باريس"], type: "text", timeMs: 16000 },
+  { text: "ما هي عاصمة اليابان؟", answers: ["طوكيو", "توكيو"], type: "text", timeMs: 16000 },
+  { text: "ما هي عاصمة الكويت؟", answers: ["الكويت", "مدينة الكويت"], type: "text", timeMs: 16000 },
+  { text: "ما هي عاصمة قطر؟", answers: ["الدوحة", "دوحة"], type: "text", timeMs: 16000 },
+  { text: "ما هي عاصمة عُمان؟", answers: ["مسقط"], type: "text", timeMs: 18000 },
+  { text: "ما هي عاصمة الأردن؟", answers: ["عمان"], type: "text", timeMs: 16000 },
+  { text: "ما هي عاصمة تركيا؟", answers: ["انقرة", "أنقرة"], type: "text", timeMs: 18000 },
+  { text: "ما هي عاصمة البحرين؟", answers: ["المنامة", "منامة"], type: "text", timeMs: 18000 },
+  { text: "ما هي عاصمة ألمانيا؟", answers: ["برلين"], type: "text", timeMs: 16000 },
+  { text: "ما هي عاصمة إيطاليا؟", answers: ["روما"], type: "text", timeMs: 16000 },
+  { text: "ما هي عاصمة إسبانيا؟", answers: ["مدريد"], type: "text", timeMs: 16000 },
+  { text: "أطول نهر في العالم؟", answers: ["النيل", "نهر النيل"], type: "text", timeMs: 18000 },
+  { text: "أكبر كوكب في المجموعة الشمسية؟", answers: ["المشتري"], type: "text", timeMs: 18000 },
+  { text: "أسرع حيوان بري في العالم؟", answers: ["الفهد"], type: "text", timeMs: 18000 },
+  { text: "أطول حيوان في العالم؟", answers: ["الزرافة"], type: "text", timeMs: 18000 },
+  { text: "أكبر محيط في العالم؟", answers: ["الهادئ", "المحيط الهادئ", "المحيط الهادي"], type: "text", timeMs: 18000 },
+  { text: "أكبر دولة في العالم من حيث المساحة؟", answers: ["روسيا"], type: "text", timeMs: 16000 },
+  { text: "أول رجل وصل إلى سطح القمر؟", answers: ["أرمسترونج", "ارمسترونج", "نيل أرمسترونج"], type: "text", timeMs: 18000 },
+  { text: "في أي دولة يقع برج إيفل؟", answers: ["فرنسا"], type: "text", timeMs: 14000 },
+  { text: "ما هو أكبر حيوان في العالم؟", answers: ["الحوت الأزرق", "حوت أزرق", "الحوت"], type: "text", timeMs: 18000 },
+  { text: "ما هو أصغر كوكب في المجموعة الشمسية؟", answers: ["عطارد"], type: "text", timeMs: 20000 },
+  { text: "ما هي الدولة الأكثر سكاناً في العالم؟", answers: ["الهند"], type: "text", timeMs: 20000 },
+  { text: "في أي دولة يقع نهر الأمازون؟", answers: ["البرازيل"], type: "text", timeMs: 20000 },
+  { text: "ما هو أكبر بلد في القارة الأفريقية مساحةً؟", answers: ["الجزائر"], type: "text", timeMs: 20000 },
+  { text: "في أي قارة تقع مصر؟", answers: ["افريقيا", "أفريقيا"], type: "text", timeMs: 16000 },
+  { text: "ما هي أكبر قارة في العالم؟", answers: ["آسيا", "اسيا"], type: "text", timeMs: 16000 },
+  { text: "ما لون الدم؟", answers: ["أحمر", "احمر"], type: "text", timeMs: 12000 },
+  { text: "ما لون السماء؟", answers: ["أزرق", "ازرق"], type: "text", timeMs: 12000 },
+  { text: "ما لون الثلج؟", answers: ["أبيض", "ابيض"], type: "text", timeMs: 12000 },
+  { text: "ما لون الموز؟", answers: ["أصفر", "اصفر"], type: "text", timeMs: 12000 },
+  { text: "النحل يصنع ماذا؟", answers: ["عسل", "العسل"], type: "text", timeMs: 14000 },
+  { text: "ما هي اللغة الرسمية في البرازيل؟", answers: ["البرتغالية", "برتغالية", "البرتغاليه"], type: "text", timeMs: 18000 },
+  { text: "كم لاعباً في فريق كرة القدم؟", answers: ["11", "أحد عشر", "احد عشر"], type: "text", timeMs: 14000 },
+  { text: "كأس العالم يُقام كل كم سنة؟", answers: ["4", "أربع", "أربعة", "اربع", "اربعة"], type: "text", timeMs: 14000 },
+  { text: "في أي دولة أُقيم كأس العالم 2022؟", answers: ["قطر"], type: "text", timeMs: 16000 },
+  { text: "كم مرة فازت البرازيل بكأس العالم؟", answers: ["5", "خمس", "خمسة"], type: "text", timeMs: 18000 },
+  { text: "شركة iPhone من تصنع؟", answers: ["أبل", "ابل", "apple"], type: "text", timeMs: 14000 },
+  { text: "اسم الشخصية الرئيسية في لعبة Super Mario؟", answers: ["ماريو", "mario"], type: "text", timeMs: 16000 },
+  { text: "الشركة المصنعة لـ PlayStation؟", answers: ["سوني", "sony"], type: "text", timeMs: 16000 },
+  { text: "اسم الفرقة الأشهر في التاريخ من بريطانيا؟", answers: ["بيتلز", "البيتلز", "beatles"], type: "text", timeMs: 20000 },
+  { text: "الشعار Just Do It لأي شركة؟", answers: ["نايكي", "nike"], type: "text", timeMs: 16000 },
+  { text: "لون شعار كوكاكولا؟", answers: ["أحمر", "احمر"], type: "text", timeMs: 12000 },
+  { text: "علم اليابان فيه شكل ماذا؟", answers: ["دائرة", "قرص", "شمس", "دايرة"], type: "text", timeMs: 14000 },
+  { text: "ما هو الحيوان الذي يعيش أطول مدة؟", answers: ["السلحفاة", "سلحفاة"], type: "text", timeMs: 20000 },
+  { text: "أي حيوان يُعرف بملك الغابة؟", answers: ["الأسد", "اسد", "الاسد"], type: "text", timeMs: 14000 },
+  { text: "من أسس شركة Microsoft؟", answers: ["بيل غيتس", "بيل جيتس", "bill gates"], type: "text", timeMs: 18000 },
+  { text: "من أسس شركة Apple؟", answers: ["ستيف جوبز", "steve jobs"], type: "text", timeMs: 18000 },
+  { text: "كم ضلعاً للمثلث؟", answers: ["3", "ثلاثة"], type: "text", timeMs: 12000 },
+  { text: "كم ضلعاً للمسدس؟", answers: ["6", "ستة", "سته"], type: "text", timeMs: 14000 },
+  { text: "كم ضلعاً للمربع؟", answers: ["4", "أربعة", "اربعة"], type: "text", timeMs: 12000 },
+  { text: "كم ثانية في الدقيقة؟", answers: ["60", "ستون"], type: "text", timeMs: 12000 },
+  { text: "كم ساعة في اليوم؟", answers: ["24", "أربعة وعشرون"], type: "text", timeMs: 12000 },
+  { text: "كم شهر في السنة؟", answers: ["12", "اثنا عشر", "اثني عشر"], type: "text", timeMs: 12000 },
+  { text: "كم يوماً في الأسبوع؟", answers: ["7", "سبعة"], type: "text", timeMs: 10000 },
+  { text: "كم لون في قوس قزح؟", answers: ["7", "سبعة"], type: "text", timeMs: 12000 },
+  { text: "أين تقع برج خليفة؟", answers: ["دبي", "الإمارات", "الامارات"], type: "text", timeMs: 16000 },
+  { text: "ما عاصمة المغرب؟", answers: ["الرباط", "رباط"], type: "text", timeMs: 18000 },
+  { text: "ما عاصمة تونس؟", answers: ["تونس"], type: "text", timeMs: 14000 },
+  { text: "ما عاصمة ليبيا؟", answers: ["طرابلس"], type: "text", timeMs: 18000 },
+  { text: "البقرة تعطينا ماذا؟", answers: ["حليب", "لبن"], type: "text", timeMs: 12000 },
+  { text: "البيضة تأتي من ماذا؟", answers: ["دجاجة", "دجاج", "طير", "فرخة"], type: "text", timeMs: 12000 },
+  { text: "البيتزا مشهورة في أي دولة؟", answers: ["ايطاليا", "إيطاليا"], type: "text", timeMs: 14000 },
+  { text: "السوشي أصله من أي دولة؟", answers: ["اليابان", "يابان"], type: "text", timeMs: 14000 },
+  // ── صح أم خطأ ────────────────────────────────────────────────────────────
+  { text: "صح أم خطأ: القرش حيوان ثديي", answers: ["خطأ", "خطا", "غلط", "لا"], type: "tf", timeMs: 16000 },
+  { text: "صح أم خطأ: الحوت حيوان ثديي", answers: ["صح", "صحيح", "نعم"], type: "tf", timeMs: 16000 },
+  { text: "صح أم خطأ: الطماطم فاكهة", answers: ["صح", "صحيح", "نعم"], type: "tf", timeMs: 16000 },
+  { text: "صح أم خطأ: الزرافة هي أطول حيوان", answers: ["صح", "صحيح", "نعم"], type: "tf", timeMs: 16000 },
+  { text: "صح أم خطأ: المريخ أكبر من الأرض", answers: ["خطأ", "خطا", "غلط", "لا"], type: "tf", timeMs: 16000 },
+  { text: "صح أم خطأ: الدلفين حيوان ثديي", answers: ["صح", "صحيح", "نعم"], type: "tf", timeMs: 16000 },
+  { text: "صح أم خطأ: مكة المكرمة في المدينة المنورة", answers: ["خطأ", "خطا", "غلط", "لا"], type: "tf", timeMs: 16000 },
+  { text: "صح أم خطأ: أستراليا قارة", answers: ["صح", "صحيح", "نعم"], type: "tf", timeMs: 18000 },
+  { text: "صح أم خطأ: الشمس نجم", answers: ["صح", "صحيح", "نعم"], type: "tf", timeMs: 14000 },
+  { text: "صح أم خطأ: الذهب لونه فضي", answers: ["خطأ", "خطا", "غلط", "لا"], type: "tf", timeMs: 14000 },
+  { text: "صح أم خطأ: القطب الجنوبي فيه دببة قطبية", answers: ["خطأ", "خطا", "غلط", "لا"], type: "tf", timeMs: 18000 },
+  { text: "صح أم خطأ: النعامة أكبر طيور العالم", answers: ["صح", "صحيح", "نعم"], type: "tf", timeMs: 16000 },
+  // ── تحدي السرعة ──────────────────────────────────────────────────────────
+  { text: "أسرع واحد يكتب: كنبة", answers: ["كنبة"], type: "speed", timeMs: 15000 },
+  { text: "أسرع واحد يكتب: برودة", answers: ["برودة"], type: "speed", timeMs: 15000 },
+  { text: "أسرع واحد يكتب: طماطم", answers: ["طماطم"], type: "speed", timeMs: 15000 },
+  { text: "أسرع واحد يكتب: مقلاة", answers: ["مقلاة"], type: "speed", timeMs: 15000 },
+  { text: "أسرع واحد يكتب: برتقال", answers: ["برتقال"], type: "speed", timeMs: 15000 },
+  { text: "أسرع واحد يكتب: شنطة", answers: ["شنطة"], type: "speed", timeMs: 15000 },
+  { text: "أسرع واحد يكتب: موزة", answers: ["موزة", "موز"], type: "speed", timeMs: 15000 },
+  { text: "أسرع واحد يكتب: زلابية", answers: ["زلابية"], type: "speed", timeMs: 16000 },
+  { text: "أسرع واحد يكتب: بطيخ", answers: ["بطيخ"], type: "speed", timeMs: 13000 },
+  { text: "أسرع واحد يكتب: مغامرة", answers: ["مغامرة"], type: "speed", timeMs: 17000 },
+  { text: "أسرع واحد يكتب: قهوة", answers: ["قهوة"], type: "speed", timeMs: 13000 },
+  { text: "أسرع واحد يكتب: طائرة", answers: ["طائرة", "طيارة"], type: "speed", timeMs: 15000 },
+  { text: "أسرع واحد يكتب: فراشة", answers: ["فراشة"], type: "speed", timeMs: 15000 },
+  { text: "أسرع واحد يكتب: مكيف", answers: ["مكيف"], type: "speed", timeMs: 13000 },
+  { text: "أسرع واحد يكتب: شاشة", answers: ["شاشة"], type: "speed", timeMs: 13000 },
+  { text: "أسرع واحد يكتب: تلفزيون", answers: ["تلفزيون", "تلفاز"], type: "speed", timeMs: 16000 },
+  { text: "أسرع واحد يكتب: فستق", answers: ["فستق"], type: "speed", timeMs: 13000 },
+  { text: "أسرع واحد يكتب: سلحفاة", answers: ["سلحفاة"], type: "speed", timeMs: 17000 },
+  { text: "أسرع واحد يكتب: عصفور", answers: ["عصفور"], type: "speed", timeMs: 15000 },
+  { text: "أسرع واحد يكتب: صاروخ", answers: ["صاروخ"], type: "speed", timeMs: 15000 },
+  { text: "أسرع واحد يكتب: كاميرا", answers: ["كاميرا"], type: "speed", timeMs: 15000 },
+  { text: "أسرع واحد يكتب: مطبخ", answers: ["مطبخ"], type: "speed", timeMs: 13000 },
+  { text: "أسرع واحد يكتب: حاسوب", answers: ["حاسوب", "كمبيوتر"], type: "speed", timeMs: 15000 },
+  { text: "أسرع واحد يكتب: علاكة", answers: ["علاكة", "علكة", "علاكه"], type: "speed", timeMs: 15000 },
+  { text: "أسرع واحد يكتب: بوظة", answers: ["بوظة", "بوظه", "آيس كريم", "ايس كريم"], type: "speed", timeMs: 15000 },
+  { text: "أسرع واحد يكتب: مشروع", answers: ["مشروع"], type: "speed", timeMs: 15000 },
+  { text: "أسرع واحد يكتب: قمر", answers: ["قمر"], type: "speed", timeMs: 11000 },
+  { text: "أسرع واحد يكتب: نجمة", answers: ["نجمة"], type: "speed", timeMs: 13000 },
+  { text: "أسرع واحد يكتب: سحابة", answers: ["سحابة"], type: "speed", timeMs: 13000 },
+  { text: "أسرع واحد يكتب: رعد", answers: ["رعد"], type: "speed", timeMs: 11000 },
+  // ── تحدي الأرقام ─────────────────────────────────────────────────────────
+  { text: "أسرع واحد يكتب الرقم: 2025", answers: ["2025"], type: "number", timeMs: 12000 },
+  { text: "أسرع واحد يكتب الرقم: 100", answers: ["100"], type: "number", timeMs: 10000 },
+  { text: "أسرع واحد يكتب الرقم: 786", answers: ["786"], type: "number", timeMs: 12000 },
+  { text: "أسرع واحد يكتب الرقم: 999", answers: ["999"], type: "number", timeMs: 11000 },
+  { text: "أسرع واحد يكتب الرقم: 12345", answers: ["12345"], type: "number", timeMs: 13000 },
+  { text: "أسرع واحد يكتب الرقم: 777", answers: ["777"], type: "number", timeMs: 11000 },
+  { text: "أسرع واحد يكتب الرقم: 54321", answers: ["54321"], type: "number", timeMs: 13000 },
+  { text: "أسرع واحد يكتب الرقم: 1001", answers: ["1001"], type: "number", timeMs: 12000 },
+  { text: "أسرع واحد يكتب الرقم: 55555", answers: ["55555"], type: "number", timeMs: 13000 },
+  { text: "أسرع واحد يكتب الرقم: 2024", answers: ["2024"], type: "number", timeMs: 12000 },
+  // ── تحدي الإيموجي ─────────────────────────────────────────────────────────
+  { text: "أرسل إيموجي النار الآن!", answers: ["🔥"], type: "emoji", timeMs: 13000 },
+  { text: "أرسل إيموجي الكنبة الآن!", answers: ["🛋️", "🛋"], type: "emoji", timeMs: 13000 },
+  { text: "أرسل إيموجي الضحكة الآن!", answers: ["😂", "🤣", "😹"], type: "emoji", timeMs: 13000 },
+  { text: "أرسل إيموجي الكرة الآن!", answers: ["⚽", "🏀", "🏈", "⚾", "🎾", "🏐", "🏉"], type: "emoji", timeMs: 13000 },
+  { text: "أرسل إيموجي القلب الآن!", answers: ["❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "💗", "💕", "💓", "💞", "💝", "♥️", "🩷", "🩵", "🩶"], type: "emoji", timeMs: 13000 },
+  { text: "أرسل إيموجي النجمة الآن!", answers: ["⭐", "🌟", "✨", "💫", "🌠"], type: "emoji", timeMs: 13000 },
+  { text: "أرسل إيموجي الهاتف الآن!", answers: ["📱", "☎️", "📞", "📲"], type: "emoji", timeMs: 13000 },
+  { text: "أرسل إيموجي السيارة الآن!", answers: ["🚗", "🚕", "🚙", "🏎️", "🚓", "🚑", "🚒"], type: "emoji", timeMs: 13000 },
+  { text: "أرسل إيموجي الطيارة الآن!", answers: ["✈️", "🛩️", "✈"], type: "emoji", timeMs: 13000 },
+  { text: "أرسل إيموجي الفاكهة الآن!", answers: ["🍎", "🍏", "🍊", "🍋", "🍌", "🍉", "🍇", "🍓", "🫐", "🍑", "🍒", "🥭", "🍍", "🥥", "🥝", "🍅"], type: "emoji", timeMs: 13000 },
+  { text: "أرسل إيموجي الحيوان الآن!", answers: ["🐶", "🐱", "🐭", "🐰", "🦊", "🐻", "🐼", "🐨", "🐯", "🦁", "🐮", "🐷", "🐸", "🐵", "🦓", "🦒", "🐘", "🦋", "🐢"], type: "emoji", timeMs: 13000 },
+  { text: "أرسل إيموجي الطعام الآن!", answers: ["🍕", "🍔", "🌮", "🌯", "🍜", "🍣", "🍱", "🍛", "🍝", "🥗", "🍗", "🍖", "🥩", "🍞", "🧀", "🥚", "🍳", "🥞", "🧇", "🌭", "🍟"], type: "emoji", timeMs: 13000 },
+  { text: "أرسل إيموجي الموسيقى الآن!", answers: ["🎵", "🎶", "🎸", "🎹", "🎺", "🎻", "🥁", "🎤", "🎧"], type: "emoji", timeMs: 13000 },
+  { text: "أرسل إيموجي البيت الآن!", answers: ["🏠", "🏡", "🏘️", "🏚️"], type: "emoji", timeMs: 13000 },
+  { text: "أرسل إيموجي المال الآن!", answers: ["💰", "💵", "💴", "💶", "💷", "💸", "🤑"], type: "emoji", timeMs: 13000 },
+  { text: "أرسل إيموجي الساعة الآن!", answers: ["⌚", "🕐", "🕑", "🕒", "🕓", "🕔", "⏰", "⏱️", "🕛"], type: "emoji", timeMs: 13000 },
+  { text: "أرسل إيموجي الشمس الآن!", answers: ["☀️", "🌞", "🌅", "🌄"], type: "emoji", timeMs: 13000 },
+  { text: "أرسل إيموجي القمر الآن!", answers: ["🌙", "🌛", "🌜", "🌚", "🌕", "🌑"], type: "emoji", timeMs: 13000 },
+  { text: "أرسل إيموجي المطر الآن!", answers: ["🌧️", "☔", "🌦️", "⛈️"], type: "emoji", timeMs: 13000 },
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -158,8 +199,18 @@ function lobbyText(s: CouchState): string {
     `🛋️ <b>تحدي الكنبة</b>\n\n` +
     `🔵 <b>الفريق الأزرق (${s.teams[0].size}):</b>\n${teamPlayers(s, 0)}\n\n` +
     `🔴 <b>الفريق الأحمر (${s.teams[1].size}):</b>\n${teamPlayers(s, 1)}\n\n` +
-    `<i>اختار فريقك  •  لازم فريقين فيهم 2+ لاعبين</i>`
+    `<i>اضغط انضم — التوزيع عشوائي تلقائي  •  لازم فريقين فيهم 2+ لاعبين</i>`
   );
+}
+
+function autoAssignTeam(s: CouchState, uid: number): 0 | 1 {
+  // If already in a team, remove first
+  s.teams[0].delete(uid);
+  s.teams[1].delete(uid);
+  // Assign to team with fewer players; random if equal
+  if (s.teams[0].size < s.teams[1].size) return 0;
+  if (s.teams[1].size < s.teams[0].size) return 1;
+  return Math.random() < 0.5 ? 0 : 1;
 }
 
 function pickQuestion(s: CouchState): CouchQuestion {
@@ -220,11 +271,8 @@ export async function startCouch(
     {
       parse_mode: "HTML",
       ...Markup.inlineKeyboard([
-        [
-          Markup.button.callback("🔵 الفريق الأزرق", `couch:join:${chatId}:0`),
-          Markup.button.callback("🔴 الفريق الأحمر",  `couch:join:${chatId}:1`),
-        ],
-        [Markup.button.callback("▶️  ابدأ اللعبة",   `couch:start:${chatId}`)],
+        [Markup.button.callback("انضم للعبة", `couch:join:${chatId}:auto`)],
+        [Markup.button.callback("ابدا اللعبة", `couch:start:${chatId}`)],
       ]),
     }
   ).catch(() => null);
@@ -240,12 +288,12 @@ export async function handleCouchSetRounds(
 }
 
 export async function handleCouchJoin(
-  bot: Telegraf, ctx: Context, chatId: number, teamIdx: 0 | 1,
+  bot: Telegraf, ctx: Context, chatId: number, _teamIdx: number,
 ): Promise<void> {
   const from = ctx.from!;
   const s    = gameStates.get(chatId);
   if (!s || s.type !== "couch" || s.phase !== "joining") {
-    await ctx.answerCbQuery("❌ التسجيل مو متاح").catch(() => {}); return;
+    await ctx.answerCbQuery("التسجيل مو متاح").catch(() => {}); return;
   }
 
   const player: CouchPlayer = {
@@ -253,13 +301,11 @@ export async function handleCouchJoin(
     firstName: from.first_name ?? "", lastName: from.last_name ?? "",
   };
 
-  // Remove from other team if switching
-  const other = (1 - teamIdx) as 0 | 1;
-  s.teams[other].delete(from.id);
-  s.teams[teamIdx].set(from.id, player);
+  const assigned = autoAssignTeam(s, from.id);
+  s.teams[assigned].set(from.id, player);
 
-  const teamName = teamIdx === 0 ? "الفريق الأزرق 🔵" : "الفريق الأحمر 🔴";
-  await ctx.answerCbQuery(`✅ انضممت لـ ${teamName}!`).catch(() => {});
+  const teamName = assigned === 0 ? "الفريق الأزرق" : "الفريق الأحمر";
+  await ctx.answerCbQuery(`انضممت للـ ${teamName}!`).catch(() => {});
 
   // Update lobby
   if (s.joinMsgId) {
@@ -268,11 +314,8 @@ export async function handleCouchJoin(
       {
         parse_mode: "HTML",
         ...Markup.inlineKeyboard([
-          [
-            Markup.button.callback("🔵 الفريق الأزرق", `couch:join:${chatId}:0`),
-            Markup.button.callback("🔴 الفريق الأحمر",  `couch:join:${chatId}:1`),
-          ],
-          [Markup.button.callback("▶️  ابدأ اللعبة",   `couch:start:${chatId}`)],
+          [Markup.button.callback("انضم للعبة", `couch:join:${chatId}:auto`)],
+          [Markup.button.callback("ابدا اللعبة", `couch:start:${chatId}`)],
         ]),
       }
     ).catch(() => {});
