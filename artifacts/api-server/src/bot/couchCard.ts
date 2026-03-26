@@ -322,7 +322,7 @@ export async function generateCouchStartCard(
   // VS text above sofa
   text(ctx, "VS", midX, PY + 44, "bold 22px CairoBold", "#9900FF", "center", "#AA44FF");
 
-  return canvas.toBuffer("image/jpeg", { quality: 94 }) as unknown as Buffer;
+  return canvas.toBuffer("image/png") as unknown as Buffer;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -421,7 +421,7 @@ export async function generateCouchSofaCard(
   text(ctx, "ممنوع:  " + lim(sofaName, 12), midX, H - 58, "bold 18px CairoBold", col, "center");
   text(ctx, "بقية الفريق اجاوبوا — قبل الخصم!", midX, H - 30, "16px Cairo", C.silver, "center");
 
-  return canvas.toBuffer("image/jpeg", { quality: 94 }) as unknown as Buffer;
+  return canvas.toBuffer("image/png") as unknown as Buffer;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -485,5 +485,5 @@ export async function generateCouchWinCard(
     text(ctx, "* " + lim(mvpName, 16) + " — اكثر تاثيراً", W / 2, H - 30, "bold 19px CairoBold", col, "center");
   }
 
-  return canvas.toBuffer("image/jpeg", { quality: 94 }) as unknown as Buffer;
+  return canvas.toBuffer("image/png") as unknown as Buffer;
 }
