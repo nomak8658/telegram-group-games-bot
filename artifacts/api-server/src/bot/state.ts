@@ -315,7 +315,7 @@ export interface CouchQuestion {
 
 export interface CouchState {
   type: "couch";
-  phase: "setup" | "joining" | "playing" | "sofa_active" | "choosing" | "done";
+  phase: "joining" | "playing" | "sofa_active" | "choosing" | "done";
   chatId: number;
   hostId: number;
   teams: [Map<number, CouchPlayer>, Map<number, CouchPlayer>];
