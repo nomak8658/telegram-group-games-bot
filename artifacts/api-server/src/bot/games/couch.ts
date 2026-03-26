@@ -6,6 +6,7 @@ import {
 } from "../state.js";
 import {
   generateCouchStartCard,
+  generateCouchQuestionCard,
   generateCouchSofaCard,
   generateCouchWinCard,
 } from "../couchCard.js";
@@ -507,16 +508,26 @@ async function askQuestion(bot: Telegraf, chatId: number): Promise<void> {
   s.currentQ = q;
   s.questionNum++;
 
-  const secs = Math.round(q.timeMs / 1000);
-  const typeTag = q.type === "speed" ? "⚡ <b>تحدي السرعة</b>" :
-                  q.type === "emoji" ? "🎭 <b>تحدي الإيموجي</b>" : "❓ <b>سؤال</b>";
+  const secs    = Math.round(q.timeMs / 1000);
+  const caption = `❓ <b>${esc(q.text)}</b>\n\n` +
+                  `🔵 ${s.scores[0]}  —  ${s.scores[1]} 🔴  |  ⏱️ ${secs} ثانية`;
 
-  const msg = await bot.telegram.sendMessage(chatId,
-    `${typeTag}  |  🔵 ${s.scores[0]}  —  ${s.scores[1]} 🔴\n\n` +
-    `<b>${esc(q.text)}</b>\n\n` +
-    `⏱️ لديكم ${secs} ثانية!`,
-    { parse_mode: "HTML" }
-  ).catch(() => null);
+  let buf: Buffer | null = null;
+  try {
+    buf = await generateCouchQuestionCard(
+      s.scores[0], s.scores[1],
+      q.text, q.type, s.questionNum,
+    );
+  } catch { /* fallback to text */ }
+
+  let msg: { message_id: number } | null = null;
+  if (buf) {
+    msg = await bot.telegram.sendPhoto(chatId, { source: buf }, { caption, parse_mode: "HTML" }).catch(async () => {
+      return bot.telegram.sendMessage(chatId, caption, { parse_mode: "HTML" }).catch(() => null);
+    });
+  } else {
+    msg = await bot.telegram.sendMessage(chatId, caption, { parse_mode: "HTML" }).catch(() => null);
+  }
   if (msg) s.qMsgId = msg.message_id;
 
   startTimer(bot, chatId, q.timeMs, async () => {
