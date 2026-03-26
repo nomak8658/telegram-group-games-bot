@@ -304,7 +304,7 @@ export interface CouchPlayer {
   lastName: string;
 }
 
-export type CouchQuestionType = "text" | "speed" | "emoji";
+export type CouchQuestionType = "text" | "speed" | "emoji" | "number" | "tf";
 
 export interface CouchQuestion {
   text: string;
