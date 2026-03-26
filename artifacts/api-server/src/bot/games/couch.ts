@@ -263,7 +263,7 @@ export async function startCouch(
     currentQ: null,
     roundSeq: 0,
     scores: [0, 0],
-    targetScore: 5, // first team to reach 5 points wins
+    targetScore: 1, // first team to sit together wins
     choosingPlayerId: null,
     choosingTeamIdx: null,
     questionPool: [],
@@ -437,9 +437,9 @@ export async function handleCouchChoose(
     const prevName = prevSofa ? dnC(prevSofa) : "";
 
     await bot.telegram.sendMessage(chatId,
-      `🛋️ <b>${esc(dnC(chooser))}</b> طرد <b>${prevName ? esc(prevName) : "اللاعب"}</b> وجلس مكانه على الكنبة!\n\n` +
-      `📣 يا ${teamDisplay(s.choosingTeamIdx!)} — زميلكم ينتظركم!\n` +
-      `<i>أجاوبوا الصح تقعدوا معه وتسجلون!</i>`,
+      `🛋️ <b>${esc(dnC(chooser))}</b> جلس بجنب <b>${prevName ? esc(prevName) : "اللاعب"}</b> وأزاحه من الكنبة!\n\n` +
+      `📣 يا ${teamDisplay(s.choosingTeamIdx!)} — زميلكم ينتظركم على الكنبة!\n` +
+      `<i>أجاوبوا الصح تقعدوا معه وتفوزون!</i>`,
       { parse_mode: "HTML" }
     ).catch(() => {});
 
@@ -477,7 +477,7 @@ async function launchCouch(bot: Telegraf, chatId: number): Promise<void> {
     `🛋️ <b>تحدي الكنبة — انطلقنا!</b>\n\n` +
     `🔵 <b>الأزرق:</b> ${teamANames.map(esc).join("، ")}\n` +
     `🔴 <b>الأحمر:</b> ${teamBNames.map(esc).join("، ")}\n\n` +
-    `🏆 أول فريق يصل <b>${s.targetScore}</b> نقاط يفوز!`;
+    `🏆 أول فريق يجلسون على الكنبة معاً يفوز!`;
 
   if (buf) {
     await bot.telegram.sendPhoto(chatId, { source: buf }, { caption: startCaption, parse_mode: "HTML" }).catch(() => {
@@ -491,9 +491,9 @@ async function launchCouch(bot: Telegraf, chatId: number): Promise<void> {
     `📜 <b>القواعد:</b>\n` +
     `• أجاوب الصح أول → تجلس على الكنبة 🛋️\n` +
     `• اللي على الكنبة ما يقدر يجاوب\n` +
-    `• زميلك يجاوب الصح → يجلس معك على الكنبة = نقطة لفريقكم! 🎉\n` +
-    `• الخصم يجاوب → يختارون: يطردونك من الكنبة أو يجلسون مكانك\n` +
-    `• أول فريق يوصل ${s.targetScore} نقاط يفوز 🏆`,
+    `• زميلك يجاوب الصح → يجلس معك = فريقكم يفوز! 🏆\n` +
+    `• الخصم يجاوب → يختارون: يطردونك أو يجلسون بجنبك (يأخذون مكانك)\n` +
+    `• أول فريق يجلسون على الكنبة مع بعض يفوز!`,
     { parse_mode: "HTML" }
   ).catch(() => {});
 
@@ -718,8 +718,8 @@ function onOpponentAnswers(
     {
       parse_mode: "HTML",
       ...Markup.inlineKeyboard([
-        [Markup.button.callback(`💥 اطردوا ${lim(dnC(sofaPlayer), 14)} من الكنبة`, `couch:choose:${chatId}:kick`)],
-        [Markup.button.callback(`🛋️ ${lim(dnC(player), 14)} يجلس بدل ${lim(dnC(sofaPlayer), 12)}`, `couch:choose:${chatId}:take`)],
+        [Markup.button.callback(`💥 اطرد ${lim(dnC(sofaPlayer), 16)} من الكنبة`, `couch:choose:${chatId}:kick`)],
+        [Markup.button.callback(`🛋️ اجلس بجنب ${lim(dnC(sofaPlayer), 16)}`, `couch:choose:${chatId}:take`)],
       ]),
     }
   ).then(msg => {
