@@ -190,27 +190,9 @@ export async function startCouch(
     return;
   }
 
-  // Ask for target score
-  const sent = await bot.telegram.sendMessage(chatId,
-    `🛋️ <b>تحدي الكنبة</b>\n\nاختار عدد الجولات للفوز:`,
-    {
-      parse_mode: "HTML",
-      ...Markup.inlineKeyboard([
-        [
-          Markup.button.callback("🥉 3 جولات", `couch:rounds:${chatId}:3`),
-          Markup.button.callback("🥇 5 جولات", `couch:rounds:${chatId}:5`),
-          Markup.button.callback("🏆 7 جولات", `couch:rounds:${chatId}:7`),
-        ],
-      ]),
-    }
-  ).catch(() => null);
-
-  if (!sent) return;
-
-  // Temporarily store host info for when rounds are picked
   const s: CouchState = {
     type: "couch",
-    phase: "setup",
+    phase: "joining",
     chatId,
     hostId,
     teams: [new Map(), new Map()],
@@ -219,12 +201,12 @@ export async function startCouch(
     currentQ: null,
     roundSeq: 0,
     scores: [0, 0],
-    targetScore: 3,
+    targetScore: 1, // first team to complete sofa sequence wins
     choosingPlayerId: null,
     choosingTeamIdx: null,
     questionPool: [],
     questionNum: 0,
-    setupMsgId: sent.message_id,
+    setupMsgId: undefined,
     joinMsgId: undefined,
     timerHandle: undefined,
     choosingMsgId: undefined,
@@ -232,30 +214,7 @@ export async function startCouch(
   };
   s.teams[0].set(hostId, { id: hostId, username: hostUsername, firstName: hostFirst, lastName: hostLast });
   gameStates.set(chatId, s);
-}
 
-export async function handleCouchSetRounds(
-  bot: Telegraf, ctx: Context, chatId: number, rounds: number,
-): Promise<void> {
-  const from = ctx.from!;
-  const s    = gameStates.get(chatId);
-  if (!s || s.type !== "couch" || s.phase !== "setup") {
-    await ctx.answerCbQuery("❌").catch(() => {}); return;
-  }
-  if (from.id !== s.hostId) {
-    await ctx.answerCbQuery("⛔ فقط من بدأ اللعبة!").catch(() => {}); return;
-  }
-  await ctx.answerCbQuery(`✅ ${rounds} جولات`).catch(() => {});
-
-  s.targetScore = rounds;
-  s.phase = "joining";
-
-  // Remove setup message
-  if (s.setupMsgId) {
-    bot.telegram.deleteMessage(chatId, s.setupMsgId).catch(() => {});
-  }
-
-  // Send lobby
   const msg = await bot.telegram.sendMessage(chatId,
     lobbyText(s),
     {
@@ -271,6 +230,13 @@ export async function handleCouchSetRounds(
   ).catch(() => null);
 
   if (msg) s.joinMsgId = msg.message_id;
+}
+
+// Stub kept for backward-compat with any existing callbacks — immediately redirects
+export async function handleCouchSetRounds(
+  _bot: Telegraf, ctx: Context, _chatId: number, _rounds: number,
+): Promise<void> {
+  await ctx.answerCbQuery("✅").catch(() => {});
 }
 
 export async function handleCouchJoin(
@@ -451,7 +417,7 @@ async function launchCouch(bot: Telegraf, chatId: number): Promise<void> {
     `🛋️ <b>تحدي الكنبة — انطلقنا!</b>\n\n` +
     `🔵 <b>الأزرق:</b> ${teamANames.map(esc).join("، ")}\n` +
     `🔴 <b>الأحمر:</b> ${teamBNames.map(esc).join("، ")}\n\n` +
-    `🏆 أول فريق يصل لـ <b>${s.targetScore}</b> جولات يفوز!`;
+    `🏆 أول فريق يكمل التحدي يفوز — ما في حد للجولات!`;
 
   if (buf) {
     await bot.telegram.sendPhoto(chatId, { source: buf }, { caption: startCaption, parse_mode: "HTML" }).catch(() => {
