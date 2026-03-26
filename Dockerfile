@@ -1,5 +1,6 @@
 FROM node:20-slim
 
+# v2 - تحدي الكنبة + all games
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     python3 \
@@ -9,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libjpeg-dev \
     libgif-dev \
     librsvg2-dev \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/lists/*
 
 RUN npm install -g pnpm@10
 
