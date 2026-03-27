@@ -46,7 +46,7 @@ import {
 } from "./games/couch.js";
 import type { UnoCard, RpsMove } from "./state.js";
 import { generateTopCard }    from "./topCard.js";
-import { handleMusicSearch }  from "./music.js";
+import { handleMusicSearch, preWarmYtDlp }  from "./music.js";
 
 function menuMsg() {
   return (
@@ -853,6 +853,7 @@ export async function launchBot(): Promise<void> {
   bot.catch((err) => { logger.error({ err }, "bot error"); });
   bot.launch({ dropPendingUpdates: true });
   logger.info("Telegram bot launched");
+  preWarmYtDlp(); // warm up yt-dlp binary in background
 
   process.once("SIGINT", () => bot.stop("SIGINT"));
   process.once("SIGTERM", () => bot.stop("SIGTERM"));
