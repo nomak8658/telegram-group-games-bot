@@ -1,6 +1,6 @@
 import type { Telegraf } from "telegraf";
 import { spawn, execFile }  from "child_process";
-import { existsSync, unlinkSync } from "fs";
+import { existsSync, unlinkSync, readdirSync } from "fs";
 import { readFile, chmod }  from "fs/promises";
 import { promisify }        from "util";
 import path                 from "path";
@@ -56,9 +56,26 @@ async function resolveYtDlp(): Promise<string> {
   return downloadPromise;
 }
 
-// Pre-warm at startup (don't await — run in background)
+// Pre-warm at startup (background)
 export function preWarmYtDlp(): void {
-  resolveYtDlp().catch(() => {});
+  resolveYtDlp().then(p => console.log("[music] yt-dlp ready:", p)).catch(e => console.error("[music] yt-dlp warm failed:", e?.message));
+}
+
+// ─── ffmpeg resolution ────────────────────────────────────────────────────────
+
+let ffmpegDir: string | null = null;
+let ffmpegChecked = false;
+
+async function getFfmpegDir(): Promise<string | null> {
+  if (ffmpegChecked) return ffmpegDir;
+  ffmpegChecked = true;
+  try {
+    const { stdout } = await execFileAsync("which", ["ffmpeg"]);
+    const p = stdout.trim();
+    ffmpegDir = p ? path.dirname(p) : null;
+  } catch { ffmpegDir = null; }
+  console.log("[music] ffmpeg:", ffmpegDir ?? "NOT FOUND");
+  return ffmpegDir;
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -70,106 +87,122 @@ interface SongInfo {
   author:   string;
 }
 
-// ─── Search (yt-dlp ytsearch) ─────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function runYtDlp(bin: string, args: string[], timeoutMs = 30_000): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    let stdout = "";
+    let stderr = "";
+    const proc = spawn(bin, args);
+    proc.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
+    proc.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
+    const timer = setTimeout(() => {
+      proc.kill("SIGKILL");
+      reject(new Error(`yt-dlp timeout (${timeoutMs / 1000}s)`));
+    }, timeoutMs);
+    proc.on("close", (code) => {
+      clearTimeout(timer);
+      if (code === 0) resolve({ stdout, stderr });
+      else reject(new Error(`yt-dlp exit ${code}: ${stderr.slice(-300)}`));
+    });
+    proc.on("error", (e) => { clearTimeout(timer); reject(e); });
+  });
+}
+
+// ─── Search ───────────────────────────────────────────────────────────────────
 
 async function findSong(query: string): Promise<SongInfo | null> {
   const bin = await resolveYtDlp();
 
-  return new Promise<SongInfo | null>((resolve) => {
-    let stdout = "";
-    let stderr = "";
-    const proc = spawn(bin, [
-      `ytsearch8:${query}`,
-      "--print", "%(title)s\t%(id)s\t%(duration)s\t%(uploader)s",
-      "--flat-playlist",
-      "--no-warnings",
-      "--no-playlist",
-      "--socket-timeout", "10",
-      "--extractor-args", "youtube:player_client=android",
-    ]);
+  const { stdout, stderr } = await runYtDlp(bin, [
+    `ytsearch8:${query}`,
+    "--print", "%(title)s\t%(id)s\t%(duration)s\t%(uploader)s",
+    "--flat-playlist",
+    "--no-warnings",
+    "--no-playlist",
+    "--socket-timeout", "10",
+    "--no-warnings",
+  ], 25_000).catch(e => { console.error("[music:search]", e?.message); return { stdout: "", stderr: "" }; });
 
-    proc.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
-    proc.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
-
-    proc.on("close", (code) => {
-      const lines = stdout.trim().split("\n").filter(Boolean);
-      for (const line of lines) {
-        const parts = line.split("\t");
-        const title = parts[0] ?? "";
-        const id    = parts[1] ?? "";
-        const dur   = parseFloat(parts[2] ?? "0");
-        const auth  = parts[3] ?? "";
-        if (id && dur > 0 && dur <= 600) {
-          return resolve({ title: title || query, id, duration: Math.round(dur), author: auth });
-        }
-      }
-      if (code !== 0) console.error("[music:search] yt-dlp error:", stderr.slice(-200));
-      resolve(null);
-    });
-
-    proc.on("error", (e) => { console.error("[music:search] spawn error:", e.message); resolve(null); });
-
-    const timer = setTimeout(() => {
-      proc.kill("SIGKILL");
-      resolve(null);
-    }, 25_000);
-
-    proc.on("close", () => clearTimeout(timer));
-  });
+  const lines = stdout.trim().split("\n").filter(Boolean);
+  for (const line of lines) {
+    const [title, id, durStr, author] = line.split("\t");
+    const dur = parseFloat(durStr ?? "0");
+    if (id && dur > 0 && dur <= 600) {
+      return { title: title || query, id, duration: Math.round(dur), author: author ?? "" };
+    }
+  }
+  if (stderr) console.error("[music:search] stderr:", stderr.slice(-200));
+  return null;
 }
 
 // ─── Download audio ───────────────────────────────────────────────────────────
 
-async function downloadAudio(videoId: string): Promise<Buffer> {
-  const bin     = await resolveYtDlp();
-  const tmpBase = path.join(os.tmpdir(), `yt_${Date.now()}_${videoId}`);
-  const outTpl  = `${tmpBase}.%(ext)s`;
+interface AudioFile { buf: Buffer; ext: string; }
 
-  // Find ffmpeg in PATH
-  let ffmpegDir = "";
-  try {
-    const { stdout } = await execFileAsync("which", ["ffmpeg"]);
-    const p = stdout.trim();
-    if (p) ffmpegDir = path.dirname(p);
-  } catch { /* no ffmpeg */ }
+async function downloadAudio(videoId: string): Promise<AudioFile> {
+  const bin      = await resolveYtDlp();
+  const ffDir    = await getFfmpegDir();
+  const tmpBase  = path.join(os.tmpdir(), `yt_${Date.now()}_${videoId}`);
 
-  const args = [
+  const baseArgs = [
     `https://www.youtube.com/watch?v=${videoId}`,
-    "-x",
-    "--audio-format",  "mp3",
-    "--audio-quality", "5",
-    "-o", outTpl,
     "--no-warnings",
     "--no-playlist",
     "--socket-timeout", "20",
     "--no-part",
-    "--extractor-args", "youtube:player_client=android",
-    ...(ffmpegDir ? ["--ffmpeg-location", ffmpegDir] : []),
+    "-o", `${tmpBase}.%(ext)s`,
   ];
 
-  const stderr = await new Promise<string>((resolve, reject) => {
-    let err = "";
-    const proc = spawn(bin, args);
-    proc.stderr.on("data", (d: Buffer) => { err += d.toString(); });
-    proc.on("close", (code) => code === 0 ? resolve(err) : reject(new Error(`yt-dlp ${code}: ${err.slice(-300)}`)));
-    proc.on("error", reject);
-    setTimeout(() => {
-      proc.kill("SIGKILL");
-      reject(new Error("download timeout (90s)"));
-    }, 90_000);
-  });
+  // ── Strategy A: mp3 via ffmpeg (best quality, needs ffmpeg) ──
+  if (ffDir) {
+    try {
+      await runYtDlp(bin, [
+        ...baseArgs,
+        "-x", "--audio-format", "mp3", "--audio-quality", "5",
+        "--ffmpeg-location", ffDir,
+      ], 90_000);
 
-  const mp3Path = `${tmpBase}.mp3`;
-  if (!existsSync(mp3Path)) {
-    console.error("[music:dl] no mp3 file; stderr:", stderr.slice(-200));
-    throw new Error("mp3 not produced");
+      const mp3 = `${tmpBase}.mp3`;
+      if (existsSync(mp3)) {
+        const buf = await readFile(mp3);
+        try { unlinkSync(mp3); } catch {}
+        return { buf, ext: "mp3" };
+      }
+    } catch (e: any) {
+      console.error("[music:dl] mp3 strategy failed:", e?.message);
+      // fall through to strategy B
+    }
   }
-  const buf = await readFile(mp3Path);
-  try { unlinkSync(mp3Path); } catch { /* ignore */ }
-  return buf;
+
+  // ── Strategy B: raw m4a/AAC (no ffmpeg needed, direct download) ──
+  // 140 = mp4a 128kbps, 139 = mp4a 48kbps, fallback to best webm
+  try {
+    await runYtDlp(bin, [
+      ...baseArgs,
+      "-f", "140/139/bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio",
+    ], 90_000);
+
+    // Find the output file by prefix
+    const tmpDir = os.tmpdir();
+    const prefix = path.basename(tmpBase);
+    const files  = readdirSync(tmpDir).filter(f => f.startsWith(prefix));
+    const found  = files[0];
+    if (found) {
+      const fullPath = path.join(tmpDir, found);
+      const buf = await readFile(fullPath);
+      try { unlinkSync(fullPath); } catch {}
+      const ext = path.extname(found).slice(1) || "m4a";
+      return { buf, ext };
+    }
+  } catch (e: any) {
+    console.error("[music:dl] m4a strategy failed:", e?.message);
+  }
+
+  throw new Error("all download strategies failed");
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Formatting ───────────────────────────────────────────────────────────────
 
 function trimTitle(t: string, max = 60): string {
   return t.length > max ? t.slice(0, max - 1) + "…" : t;
@@ -202,17 +235,10 @@ export async function handleMusicSearch(
 
   // ── 1. Search ──
   let song: SongInfo | null;
-  try {
-    song = await findSong(query);
-  } catch (e: any) {
-    console.error("[music] findSong threw:", e?.message);
-    await edit("❌ خطأ في البحث — جرب مرة ثانية.");
-    return;
-  }
-  if (!song) {
-    await edit("❌ ما لقيت نتيجة — جرب اسماً ثانياً.");
-    return;
-  }
+  try { song = await findSong(query); }
+  catch (e: any) { console.error("[music] findSong threw:", e?.message); await edit("❌ خطأ في البحث."); return; }
+
+  if (!song) { await edit("❌ ما لقيت نتيجة — جرب اسماً ثانياً."); return; }
 
   await edit(
     `🎵 <b>${trimTitle(song.title)}</b>\n` +
@@ -221,21 +247,17 @@ export async function handleMusicSearch(
   );
 
   // ── 2. Download ──
-  let buf: Buffer;
-  try {
-    buf = await downloadAudio(song.id);
-  } catch (e: any) {
-    console.error("[music] downloadAudio failed:", e?.message);
-    await edit("❌ فشل التحميل — جرب مرة ثانية.");
-    return;
-  }
+  let audio: AudioFile;
+  try { audio = await downloadAudio(song.id); }
+  catch (e: any) { console.error("[music] downloadAudio failed:", e?.message); await edit("❌ فشل التحميل — جرب مرة ثانية."); return; }
 
-  // ── 3. Send audio ──
+  // ── 3. Send ──
   await bot.telegram.deleteMessage(chatId, statusMsg?.message_id ?? 0).catch(() => {});
 
+  const filename = `${trimTitle(song.title, 40)}.${audio.ext}`;
   await bot.telegram.sendAudio(
     chatId,
-    { source: buf, filename: `${trimTitle(song.title, 40)}.mp3` },
+    { source: audio.buf, filename },
     {
       title:      trimTitle(song.title, 60),
       performer:  song.author   || undefined,
@@ -245,10 +267,6 @@ export async function handleMusicSearch(
       reply_parameters: { message_id: replyTo },
     } as any,
   ).catch(async () => {
-    await bot.telegram.sendMessage(
-      chatId,
-      "❌ فشل الإرسال — الملف ربما كبير جداً.",
-      { parse_mode: "HTML" },
-    ).catch(() => {});
+    await bot.telegram.sendMessage(chatId, "❌ فشل الإرسال — الملف كبير جداً.", { parse_mode: "HTML" }).catch(() => {});
   });
 }
