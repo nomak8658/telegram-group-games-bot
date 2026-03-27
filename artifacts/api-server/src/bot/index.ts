@@ -786,15 +786,18 @@ export async function launchBot(): Promise<void> {
 
     // ── يوت / بحث — YouTube music search ────────────────────────────────────────
     {
-      const low = trimmed.toLowerCase();
-      const prefixes = ["يوت ", "يوتيوب ", "بحث "];
-      const hit = prefixes.find(p => low.startsWith(p) || trimmed.startsWith(p));
-      if (hit) {
-        const q = trimmed.slice(hit.length).trim();
+      const musicMatch = /^(يوت(?:يوب)?|بحث)(\s+(.+))?$/u.exec(trimmed);
+      if (musicMatch) {
+        const q = (musicMatch[3] ?? "").trim();
         if (q.length > 0) {
           void handleMusicSearch(bot, chatId, q, ctx.message.message_id);
-          return;
+        } else {
+          ctx.reply(
+            `🎵 اكتب اسم الأغنية بعد الكلمة\n<code>يوت love song marcy</code>`,
+            { parse_mode: "HTML" },
+          ).catch(() => {});
         }
+        return;
       }
     }
 
