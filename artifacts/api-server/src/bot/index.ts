@@ -45,7 +45,8 @@ import {
   handleCouchText, handleCouchChoose,
 } from "./games/couch.js";
 import type { UnoCard, RpsMove } from "./state.js";
-import { generateTopCard } from "./topCard.js";
+import { generateTopCard }    from "./topCard.js";
+import { handleMusicSearch }  from "./music.js";
 
 function menuMsg() {
   return (
@@ -783,6 +784,20 @@ export async function launchBot(): Promise<void> {
       return;
     }
 
+    // ── يوت / بحث — YouTube music search ────────────────────────────────────────
+    {
+      const low = trimmed.toLowerCase();
+      const prefixes = ["يوت ", "يوتيوب ", "بحث "];
+      const hit = prefixes.find(p => low.startsWith(p) || trimmed.startsWith(p));
+      if (hit) {
+        const q = trimmed.slice(hit.length).trim();
+        if (q.length > 0) {
+          void handleMusicSearch(bot, chatId, q, ctx.message.message_id);
+          return;
+        }
+      }
+    }
+
     // ── الدائرة القاتلة — text handler ──────────────────────────────────────────
     {
       const cs = gameStates.get(chatId);
@@ -795,7 +810,7 @@ export async function launchBot(): Promise<void> {
     // ── تحدي الكنبة — text handler ───────────────────────────────────────────────
     {
       const cs = gameStates.get(chatId);
-      if (cs?.type === "couch" && (cs.phase === "playing" || cs.phase === "sofa_active")) {
+      if (cs?.type === "couch" && (cs.phase === "playing" || cs.phase === "sofa_active" || cs.phase === "double_sofa")) {
         handleCouchText(bot, chatId, uid, text);
       }
     }
