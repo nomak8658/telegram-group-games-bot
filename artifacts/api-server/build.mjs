@@ -101,6 +101,11 @@ async function buildAll() {
       "puppeteer",
       "puppeteer-core",
       "electron",
+      "play-opus",
+      "opusscript",
+      "sodium",
+      "sodium-native",
+      "@discordjs/opus",
     ],
     sourcemap: "linked",
     plugins: [
