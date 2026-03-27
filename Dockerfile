@@ -1,6 +1,5 @@
 FROM node:20-slim
 
-# v2 - تحدي الكنبة + all games
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     python3 \
@@ -10,7 +9,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libjpeg-dev \
     libgif-dev \
     librsvg2-dev \
-    && rm -rf /var/lib/lists/*
+    ffmpeg \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -sL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux \
+    -o /usr/local/bin/yt-dlp \
+    && chmod +x /usr/local/bin/yt-dlp \
+    && /usr/local/bin/yt-dlp --version
 
 RUN npm install -g pnpm@10
 
