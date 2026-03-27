@@ -159,82 +159,66 @@ async function downloadAudio(
     return { buf, ext, debugLog: errors.join(" | ") };
   };
 
-  // ── Strategy A: mp3 via ffmpeg ──────────────────────────────────────────────
-  if (ffDir) {
-    const outPath = path.join(tmpDir, `${stamp}_a.mp3`);
-    try {
-      await runYtDlp(bin, [
-        url, "--no-warnings", "--no-playlist",
-        "--socket-timeout", "20", "--no-part",
-        "-o", outPath,
-        "-x", "--audio-format", "mp3", "--audio-quality", "5",
-        "--ffmpeg-location", ffDir,
-      ], 120_000);
-      const r = await tryRead(outPath, "mp3");
-      if (r) return r;
-    } catch (e: any) {
-      errors.push(`A(mp3): ${e?.message?.slice(0, 150)}`);
-      cleanUp(outPath);
-    }
-  }
+  // android_vr bypasses YouTube authentication requirement on datacenter IPs
+  // ios client NOW requires a GVS PO Token — do NOT use ios
+  const AVR  = ["--extractor-args", "youtube:player_client=android_vr"];
+  const BASE = [url, "--no-warnings", "--no-playlist", "--socket-timeout", "20", "--no-part"];
 
-  // ── Strategy B: webm/opus — no ffmpeg, no fixup needed ──────────────────────
-  const outWebm = path.join(tmpDir, `${stamp}_b.webm`);
+  // ── Strategy A: webm/opus + android_vr — no ffmpeg, no fixup ─────────────────
+  // 251 = opus 132kbps, 249 = opus 51kbps — no fixup step needed
+  const outWebm = path.join(tmpDir, `${stamp}_a.webm`);
   try {
     await runYtDlp(bin, [
-      url, "--no-warnings", "--no-playlist",
-      "--socket-timeout", "20", "--no-part",
-      "-o", outWebm,
+      ...BASE, ...AVR, "-o", outWebm,
       "-f", "251/249/bestaudio[ext=webm]",
     ], 120_000);
     const r = await tryRead(outWebm, "webm");
     if (r) return r;
-  } catch (e: any) {
-    errors.push(`B(webm): ${e?.message?.slice(0, 150)}`);
-    cleanUp(outWebm);
-  }
+  } catch (e: any) { errors.push(`A(webm+avr): ${e?.message?.slice(0, 120)}`); cleanUp(outWebm); }
 
-  // ── Strategy C: m4a — fixup disabled ────────────────────────────────────────
-  const outM4a = path.join(tmpDir, `${stamp}_c.m4a`);
+  // ── Strategy B: m4a 128kbps + android_vr — fixup disabled ────────────────────
+  const outM4a = path.join(tmpDir, `${stamp}_b.m4a`);
   try {
     await runYtDlp(bin, [
-      url, "--no-warnings", "--no-playlist",
-      "--socket-timeout", "20", "--no-part",
-      "-o", outM4a,
+      ...BASE, ...AVR, "-o", outM4a,
       "-f", "140/139/bestaudio[ext=m4a]",
       "--fixup", "never",
     ], 120_000);
     const r = await tryRead(outM4a, "m4a");
     if (r) return r;
-  } catch (e: any) {
-    errors.push(`C(m4a): ${e?.message?.slice(0, 150)}`);
-    cleanUp(outM4a);
+  } catch (e: any) { errors.push(`B(m4a+avr): ${e?.message?.slice(0, 120)}`); cleanUp(outM4a); }
+
+  // ── Strategy C: mp3 via ffmpeg + android_vr (if ffmpeg available) ─────────────
+  if (ffDir) {
+    const out = path.join(tmpDir, `${stamp}_c.mp3`);
+    try {
+      await runYtDlp(bin, [
+        ...BASE, ...AVR, "-o", out,
+        "-x", "--audio-format", "mp3", "--audio-quality", "5",
+        "--ffmpeg-location", ffDir,
+      ], 120_000);
+      const r = await tryRead(out, "mp3");
+      if (r) return r;
+    } catch (e: any) { errors.push(`C(mp3+avr): ${e?.message?.slice(0, 120)}`); cleanUp(out); }
   }
 
-  // ── Strategy D: bestaudio any format ────────────────────────────────────────
+  // ── Strategy D: bestaudio, android_vr, any format, fixup disabled ─────────────
   const outAny = path.join(tmpDir, `${stamp}_d.%(ext)s`);
   try {
     await runYtDlp(bin, [
-      url, "--no-warnings", "--no-playlist",
-      "--socket-timeout", "20", "--no-part",
-      "-o", outAny,
+      ...BASE, ...AVR, "-o", outAny,
       "-f", "bestaudio",
       "--fixup", "never",
     ], 120_000);
-    // search any file with our stamp
     const prefix = `${stamp}_d.`;
     const found  = readdirSync(tmpDir).find(f => f.startsWith(prefix));
     if (found) {
-      const fp  = path.join(tmpDir, found);
-      const ext = path.extname(found).slice(1) || "audio";
-      const buf = await readFile(fp);
-      cleanUp(fp);
-      return { buf, ext, debugLog: errors.join(" | ") };
+      const fp = path.join(tmpDir, found);
+      const buf = await readFile(fp); cleanUp(fp);
+      return { buf, ext: path.extname(found).slice(1) || "audio", debugLog: errors.join(" | ") };
     }
-    errors.push("D(bestaudio): file not found after exit 0");
-  } catch (e: any) {
-    errors.push(`D(bestaudio): ${e?.message?.slice(0, 150)}`);
-  }
+    errors.push("D(bestaudio+avr): exit 0 but no file");
+  } catch (e: any) { errors.push(`D(bestaudio+avr): ${e?.message?.slice(0, 120)}`); }
 
   throw new Error(errors.join(" || "));
 }
