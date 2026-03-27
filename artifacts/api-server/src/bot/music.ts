@@ -20,20 +20,20 @@ let downloadPromise: Promise<string> | null = null;
 async function resolveYtDlp(): Promise<string> {
   if (resolvedBin) return resolvedBin;
 
-  // 1. Check PATH (/usr/local/bin/yt-dlp installed by Docker build)
+  // 1. Check PATH (/usr/local/bin/yt-dlp from Docker build)
   try {
     const { stdout } = await execFileAsync("which", ["yt-dlp"]);
     const p = stdout.trim();
     if (p) { resolvedBin = p; return p; }
   } catch { /* not in PATH */ }
 
-  // 2. Use fallback path if already downloaded
+  // 2. Fallback binary already downloaded
   if (existsSync(YTDLP_FALLBACK)) {
     resolvedBin = YTDLP_FALLBACK;
     return YTDLP_FALLBACK;
   }
 
-  // 3. Download standalone binary (max 45s) — only one concurrent download
+  // 3. Download standalone binary — one concurrent download
   if (!downloadPromise) {
     downloadPromise = (async () => {
       await new Promise<void>((resolve, reject) => {
@@ -48,20 +48,18 @@ async function resolveYtDlp(): Promise<string> {
       await chmod(YTDLP_FALLBACK, 0o755);
       resolvedBin = YTDLP_FALLBACK;
       return YTDLP_FALLBACK;
-    })().catch((e) => {
-      downloadPromise = null;
-      throw e;
-    });
+    })().catch((e) => { downloadPromise = null; throw e; });
   }
   return downloadPromise;
 }
 
-// Pre-warm at startup (background)
 export function preWarmYtDlp(): void {
-  resolveYtDlp().then(p => console.log("[music] yt-dlp ready:", p)).catch(e => console.error("[music] yt-dlp warm failed:", e?.message));
+  resolveYtDlp()
+    .then(p => console.log("[music] yt-dlp ready:", p))
+    .catch(e => console.error("[music] yt-dlp warm failed:", e?.message));
 }
 
-// ─── ffmpeg resolution ────────────────────────────────────────────────────────
+// ─── ffmpeg ───────────────────────────────────────────────────────────────────
 
 let ffmpegDir: string | null = null;
 let ffmpegChecked = false;
@@ -80,80 +78,86 @@ async function getFfmpegDir(): Promise<string | null> {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface SongInfo {
-  title:    string;
-  id:       string;
-  duration: number;
-  author:   string;
-}
+interface SongInfo { title: string; id: string; duration: number; author: string; }
+interface AudioFile { buf: Buffer; ext: string; }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Run yt-dlp ───────────────────────────────────────────────────────────────
 
-function runYtDlp(bin: string, args: string[], timeoutMs = 30_000): Promise<{ stdout: string; stderr: string }> {
+function runYtDlp(
+  bin: string, args: string[], timeoutMs = 30_000,
+): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     let stdout = "";
     let stderr = "";
     const proc = spawn(bin, args);
     proc.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
     proc.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
-    const timer = setTimeout(() => {
-      proc.kill("SIGKILL");
-      reject(new Error(`yt-dlp timeout (${timeoutMs / 1000}s)`));
-    }, timeoutMs);
+    const timer = setTimeout(() => { proc.kill("SIGKILL"); reject(new Error(`timeout ${timeoutMs / 1000}s`)); }, timeoutMs);
     proc.on("close", (code) => {
       clearTimeout(timer);
       if (code === 0) resolve({ stdout, stderr });
-      else reject(new Error(`yt-dlp exit ${code}: ${stderr.slice(-300)}`));
+      else reject(new Error(`exit ${code}: ${stderr.slice(-300)}`));
     });
     proc.on("error", (e) => { clearTimeout(timer); reject(e); });
   });
 }
 
 // ─── Search ───────────────────────────────────────────────────────────────────
+// Uses 4 separate --print flags (one field per line) to avoid | in titles breaking parsing
 
 async function findSong(query: string): Promise<SongInfo | null> {
   const bin = await resolveYtDlp();
 
-  const { stdout, stderr } = await runYtDlp(bin, [
-    `ytsearch8:${query}`,
-    "--print", "%(title)s|%(id)s|%(duration)s|%(uploader)s",
+  const { stdout } = await runYtDlp(bin, [
+    `ytsearch10:${query}`,
+    "--print", "%(id)s",
+    "--print", "%(title)s",
+    "--print", "%(duration)s",
+    "--print", "%(uploader)s",
     "--flat-playlist",
     "--no-warnings",
     "--no-playlist",
     "--socket-timeout", "10",
   ], 25_000).catch(e => { console.error("[music:search]", e?.message); return { stdout: "", stderr: "" }; });
 
+  // Each video produces 4 lines: id, title, duration, uploader
   const lines = stdout.trim().split("\n").filter(Boolean);
-  for (const line of lines) {
-    const [title, id, durStr, author] = line.split("|");
-    const dur = parseFloat(durStr ?? "0");
-    if (id && dur > 0 && dur <= 600) {
-      return { title: title || query, id, duration: Math.round(dur), author: author ?? "" };
+  for (let i = 0; i + 3 < lines.length; i += 4) {
+    const id    = lines[i]!.trim();
+    const title = lines[i + 1]!.trim();
+    const dur   = parseFloat(lines[i + 2]!.trim());
+    const auth  = lines[i + 3]!.trim();
+    if (id && id !== "NA" && dur > 0 && dur <= 600) {
+      return { id, title: title || query, duration: Math.round(dur), author: auth };
     }
   }
-  if (stderr) console.error("[music:search] stderr:", stderr.slice(-200));
   return null;
 }
 
-// ─── Download audio ───────────────────────────────────────────────────────────
-
-interface AudioFile { buf: Buffer; ext: string; }
+// ─── Download ─────────────────────────────────────────────────────────────────
 
 async function downloadAudio(videoId: string): Promise<AudioFile> {
-  const bin      = await resolveYtDlp();
-  const ffDir    = await getFfmpegDir();
-  const tmpBase  = path.join(os.tmpdir(), `yt_${Date.now()}_${videoId}`);
+  const bin     = await resolveYtDlp();
+  const ffDir   = await getFfmpegDir();
+  const tmpBase = path.join(os.tmpdir(), `yt_${Date.now()}_${videoId}`);
+  const outTpl  = `${tmpBase}.%(ext)s`;
 
   const baseArgs = [
     `https://www.youtube.com/watch?v=${videoId}`,
-    "--no-warnings",
-    "--no-playlist",
+    "--no-warnings", "--no-playlist",
     "--socket-timeout", "20",
     "--no-part",
-    "-o", `${tmpBase}.%(ext)s`,
+    "-o", outTpl,
   ];
 
-  // ── Strategy A: mp3 via ffmpeg (best quality, needs ffmpeg) ──
+  // ── Helper: find the output file by prefix ──────────────────────────────────
+  const findFile = (): string | null => {
+    const prefix = path.basename(tmpBase);
+    const found  = readdirSync(os.tmpdir()).find(f => f.startsWith(prefix));
+    return found ? path.join(os.tmpdir(), found) : null;
+  };
+
+  // ── Strategy A: mp3 via ffmpeg ──────────────────────────────────────────────
   if (ffDir) {
     try {
       await runYtDlp(bin, [
@@ -161,47 +165,45 @@ async function downloadAudio(videoId: string): Promise<AudioFile> {
         "-x", "--audio-format", "mp3", "--audio-quality", "5",
         "--ffmpeg-location", ffDir,
       ], 90_000);
-
-      const mp3 = `${tmpBase}.mp3`;
-      if (existsSync(mp3)) {
-        const buf = await readFile(mp3);
-        try { unlinkSync(mp3); } catch {}
-        return { buf, ext: "mp3" };
-      }
-    } catch (e: any) {
-      console.error("[music:dl] mp3 strategy failed:", e?.message);
-      // fall through to strategy B
-    }
+      const f = findFile();
+      if (f) { const buf = await readFile(f); try { unlinkSync(f); } catch {} return { buf, ext: "mp3" }; }
+    } catch (e: any) { console.error("[music:dl] mp3 failed:", e?.message); }
   }
 
-  // ── Strategy B: raw m4a/AAC (no ffmpeg needed, direct download) ──
-  // 140 = mp4a 128kbps, 139 = mp4a 48kbps, fallback to best webm
+  // ── Strategy B: webm/opus — no ffmpeg, no fixup ─────────────────────────────
+  // 251 = webm/opus 132kbps, 249 = webm/opus 51kbps — neither needs ffmpeg
   try {
     await runYtDlp(bin, [
       ...baseArgs,
-      "-f", "140/139/bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio",
+      "-f", "251/249/bestaudio[ext=webm]",
     ], 90_000);
-
-    // Find the output file by prefix
-    const tmpDir = os.tmpdir();
-    const prefix = path.basename(tmpBase);
-    const files  = readdirSync(tmpDir).filter(f => f.startsWith(prefix));
-    const found  = files[0];
-    if (found) {
-      const fullPath = path.join(tmpDir, found);
-      const buf = await readFile(fullPath);
-      try { unlinkSync(fullPath); } catch {}
-      const ext = path.extname(found).slice(1) || "m4a";
-      return { buf, ext };
+    const f = findFile();
+    if (f) {
+      const buf = await readFile(f);
+      try { unlinkSync(f); } catch {}
+      return { buf, ext: path.extname(f).slice(1) || "webm" };
     }
-  } catch (e: any) {
-    console.error("[music:dl] m4a strategy failed:", e?.message);
-  }
+  } catch (e: any) { console.error("[music:dl] webm failed:", e?.message); }
 
-  throw new Error("all download strategies failed");
+  // ── Strategy C: m4a with fixup disabled ─────────────────────────────────────
+  try {
+    await runYtDlp(bin, [
+      ...baseArgs,
+      "-f", "140/139/bestaudio[ext=m4a]",
+      "--fixup", "never",
+    ], 90_000);
+    const f = findFile();
+    if (f) {
+      const buf = await readFile(f);
+      try { unlinkSync(f); } catch {}
+      return { buf, ext: path.extname(f).slice(1) || "m4a" };
+    }
+  } catch (e: any) { console.error("[music:dl] m4a failed:", e?.message); }
+
+  throw new Error("all strategies failed");
 }
 
-// ─── Formatting ───────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function trimTitle(t: string, max = 60): string {
   return t.length > max ? t.slice(0, max - 1) + "…" : t;
@@ -211,7 +213,7 @@ function fmtDuration(sec: number): string {
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 }
 
-// ─── Public handler ───────────────────────────────────────────────────────────
+// ─── Handler ──────────────────────────────────────────────────────────────────
 
 export async function handleMusicSearch(
   bot:     Telegraf,
@@ -227,14 +229,13 @@ export async function handleMusicSearch(
   ).catch(() => null);
 
   if (!statusMsg) {
-    // Can't send at all — bot probably doesn't have permission
     console.error("[music] sendMessage failed for chatId", chatId);
     return;
   }
 
   const edit = (text: string) =>
     bot.telegram.editMessageText(
-      chatId, statusMsg?.message_id, undefined,
+      chatId, statusMsg.message_id, undefined,
       text, { parse_mode: "HTML" },
     ).catch(() => {});
 
@@ -242,7 +243,6 @@ export async function handleMusicSearch(
   let song: SongInfo | null;
   try { song = await findSong(query); }
   catch (e: any) { console.error("[music] findSong threw:", e?.message); await edit("❌ خطأ في البحث."); return; }
-
   if (!song) { await edit("❌ ما لقيت نتيجة — جرب اسماً ثانياً."); return; }
 
   await edit(
@@ -254,10 +254,10 @@ export async function handleMusicSearch(
   // ── 2. Download ──
   let audio: AudioFile;
   try { audio = await downloadAudio(song.id); }
-  catch (e: any) { console.error("[music] downloadAudio failed:", e?.message); await edit("❌ فشل التحميل — جرب مرة ثانية."); return; }
+  catch (e: any) { console.error("[music] download failed:", e?.message); await edit("❌ فشل التحميل — جرب مرة ثانية."); return; }
 
   // ── 3. Send ──
-  await bot.telegram.deleteMessage(chatId, statusMsg?.message_id ?? 0).catch(() => {});
+  await bot.telegram.deleteMessage(chatId, statusMsg.message_id).catch(() => {});
 
   const filename = `${trimTitle(song.title, 40)}.${audio.ext}`;
   await bot.telegram.sendAudio(
