@@ -136,71 +136,107 @@ async function findSong(query: string): Promise<SongInfo | null> {
 
 // ─── Download ─────────────────────────────────────────────────────────────────
 
-async function downloadAudio(videoId: string): Promise<AudioFile> {
-  const bin     = await resolveYtDlp();
-  const ffDir   = await getFfmpegDir();
-  const tmpBase = path.join(os.tmpdir(), `yt_${Date.now()}_${videoId}`);
-  const outTpl  = `${tmpBase}.%(ext)s`;
+async function downloadAudio(
+  videoId: string,
+): Promise<AudioFile & { debugLog: string }> {
+  const bin   = await resolveYtDlp();
+  const ffDir = await getFfmpegDir();
+  const stamp = `${Date.now()}_${videoId}`;
+  const tmpDir = os.tmpdir();
 
-  const baseArgs = [
-    `https://www.youtube.com/watch?v=${videoId}`,
-    "--no-warnings", "--no-playlist",
-    "--socket-timeout", "20",
-    "--no-part",
-    "-o", outTpl,
-  ];
+  const url = `https://www.youtube.com/watch?v=${videoId}`;
+  const errors: string[] = [];
 
-  // ── Helper: find the output file by prefix ──────────────────────────────────
-  const findFile = (): string | null => {
-    const prefix = path.basename(tmpBase);
-    const found  = readdirSync(os.tmpdir()).find(f => f.startsWith(prefix));
-    return found ? path.join(os.tmpdir(), found) : null;
+  const cleanUp = (p: string) => { try { unlinkSync(p); } catch {} };
+
+  const tryRead = async (p: string, ext: string): Promise<AudioFile & { debugLog: string } | null> => {
+    if (!existsSync(p)) {
+      errors.push(`file not found: ${p}`);
+      return null;
+    }
+    const buf = await readFile(p);
+    cleanUp(p);
+    return { buf, ext, debugLog: errors.join(" | ") };
   };
 
   // ── Strategy A: mp3 via ffmpeg ──────────────────────────────────────────────
   if (ffDir) {
+    const outPath = path.join(tmpDir, `${stamp}_a.mp3`);
     try {
       await runYtDlp(bin, [
-        ...baseArgs,
+        url, "--no-warnings", "--no-playlist",
+        "--socket-timeout", "20", "--no-part",
+        "-o", outPath,
         "-x", "--audio-format", "mp3", "--audio-quality", "5",
         "--ffmpeg-location", ffDir,
-      ], 90_000);
-      const f = findFile();
-      if (f) { const buf = await readFile(f); try { unlinkSync(f); } catch {} return { buf, ext: "mp3" }; }
-    } catch (e: any) { console.error("[music:dl] mp3 failed:", e?.message); }
+      ], 120_000);
+      const r = await tryRead(outPath, "mp3");
+      if (r) return r;
+    } catch (e: any) {
+      errors.push(`A(mp3): ${e?.message?.slice(0, 150)}`);
+      cleanUp(outPath);
+    }
   }
 
-  // ── Strategy B: webm/opus — no ffmpeg, no fixup ─────────────────────────────
-  // 251 = webm/opus 132kbps, 249 = webm/opus 51kbps — neither needs ffmpeg
+  // ── Strategy B: webm/opus — no ffmpeg, no fixup needed ──────────────────────
+  const outWebm = path.join(tmpDir, `${stamp}_b.webm`);
   try {
     await runYtDlp(bin, [
-      ...baseArgs,
+      url, "--no-warnings", "--no-playlist",
+      "--socket-timeout", "20", "--no-part",
+      "-o", outWebm,
       "-f", "251/249/bestaudio[ext=webm]",
-    ], 90_000);
-    const f = findFile();
-    if (f) {
-      const buf = await readFile(f);
-      try { unlinkSync(f); } catch {}
-      return { buf, ext: path.extname(f).slice(1) || "webm" };
-    }
-  } catch (e: any) { console.error("[music:dl] webm failed:", e?.message); }
+    ], 120_000);
+    const r = await tryRead(outWebm, "webm");
+    if (r) return r;
+  } catch (e: any) {
+    errors.push(`B(webm): ${e?.message?.slice(0, 150)}`);
+    cleanUp(outWebm);
+  }
 
-  // ── Strategy C: m4a with fixup disabled ─────────────────────────────────────
+  // ── Strategy C: m4a — fixup disabled ────────────────────────────────────────
+  const outM4a = path.join(tmpDir, `${stamp}_c.m4a`);
   try {
     await runYtDlp(bin, [
-      ...baseArgs,
+      url, "--no-warnings", "--no-playlist",
+      "--socket-timeout", "20", "--no-part",
+      "-o", outM4a,
       "-f", "140/139/bestaudio[ext=m4a]",
       "--fixup", "never",
-    ], 90_000);
-    const f = findFile();
-    if (f) {
-      const buf = await readFile(f);
-      try { unlinkSync(f); } catch {}
-      return { buf, ext: path.extname(f).slice(1) || "m4a" };
-    }
-  } catch (e: any) { console.error("[music:dl] m4a failed:", e?.message); }
+    ], 120_000);
+    const r = await tryRead(outM4a, "m4a");
+    if (r) return r;
+  } catch (e: any) {
+    errors.push(`C(m4a): ${e?.message?.slice(0, 150)}`);
+    cleanUp(outM4a);
+  }
 
-  throw new Error("all strategies failed");
+  // ── Strategy D: bestaudio any format ────────────────────────────────────────
+  const outAny = path.join(tmpDir, `${stamp}_d.%(ext)s`);
+  try {
+    await runYtDlp(bin, [
+      url, "--no-warnings", "--no-playlist",
+      "--socket-timeout", "20", "--no-part",
+      "-o", outAny,
+      "-f", "bestaudio",
+      "--fixup", "never",
+    ], 120_000);
+    // search any file with our stamp
+    const prefix = `${stamp}_d.`;
+    const found  = readdirSync(tmpDir).find(f => f.startsWith(prefix));
+    if (found) {
+      const fp  = path.join(tmpDir, found);
+      const ext = path.extname(found).slice(1) || "audio";
+      const buf = await readFile(fp);
+      cleanUp(fp);
+      return { buf, ext, debugLog: errors.join(" | ") };
+    }
+    errors.push("D(bestaudio): file not found after exit 0");
+  } catch (e: any) {
+    errors.push(`D(bestaudio): ${e?.message?.slice(0, 150)}`);
+  }
+
+  throw new Error(errors.join(" || "));
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -252,9 +288,15 @@ export async function handleMusicSearch(
   );
 
   // ── 2. Download ──
-  let audio: AudioFile;
+  let audio: AudioFile & { debugLog: string };
   try { audio = await downloadAudio(song.id); }
-  catch (e: any) { console.error("[music] download failed:", e?.message); await edit("❌ فشل التحميل — جرب مرة ثانية."); return; }
+  catch (e: any) {
+    const errTxt = (e?.message || "unknown").slice(0, 300);
+    console.error("[music] download failed:", errTxt);
+    // Show actual error in chat (debug mode — remove later)
+    await edit(`❌ فشل التحميل\n<code>${errTxt}</code>`);
+    return;
+  }
 
   // ── 3. Send ──
   await bot.telegram.deleteMessage(chatId, statusMsg.message_id).catch(() => {});
