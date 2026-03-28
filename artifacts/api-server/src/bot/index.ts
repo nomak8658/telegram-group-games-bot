@@ -6,7 +6,6 @@ import {
   pendingSetup, chatLeaderboard, loadLeaderboard, dn, esc, isVictim, resolveVictimId,
   type Player,
 } from "./state.js";
-import { startMenVsMen, handleVote, handleReact } from "./games/menvsmen.js";
 import {
   startTrustBreak, handleJoin, handleCloseJoin,
   handlePrivateOpinion, handleGuess, handleOpinionVote,
@@ -58,7 +57,6 @@ import { handleMusicSearch, preWarmYtDlp }  from "./music.js";
 function menuMsg() {
   return (
     `🎮 <b>اختار لعبتك</b>\n\n` +
-    `🥊 <b>مين ضد مين</b>\n<i>موضوع عشوائي — شخصان يتجادلان والقروب يصوت</i>\n\n` +
     `💀 <b>كسر الثقة</b>\n<i>الكل يكتب رأيه الصريح سراً، والضحية تخمن كاتب الأقسى</i>\n\n` +
     `🎭 <b>المافيا</b>\n<i>نقاش مفتوح، أدوار سرية، تصويت — من يكشف المافيا أولاً؟</i>\n\n` +
     `🫥 <b>برا السالفة</b>\n<i>شخص ما يعرف الموضوع — الكل يلمّح وأنت تكتشف!</i>\n\n` +
@@ -75,7 +73,6 @@ function menuMsg() {
 
 function menuKeyboard(chatId: number) {
   return Markup.inlineKeyboard([
-    [Markup.button.callback("🥊  مين ضد مين",              `menu:mvs:${chatId}`)],
     [Markup.button.callback("💀  كسر الثقة",               `menu:tb:${chatId}`)],
     [Markup.button.callback("🎭  المافيا",                  `menu:mafia:${chatId}`)],
     [Markup.button.callback("🫥  برا السالفة",             `menu:outsider:${chatId}`)],
@@ -241,7 +238,6 @@ export async function launchBot(): Promise<void> {
   bot.command("help", (ctx) => {
     ctx.reply(
       `📖 <b>الألعاب المتاحة</b>\n\n` +
-      `🥊 <b>مين ضد مين</b>\n/menvsmen @شخص1 @شخص2\n<i>موضوع عشوائي — دقيقتان نقاش + ردود حية + تصويت</i>\n\n` +
       `💀 <b>كسر الثقة</b>\n/trustbreak @الضحية\n<i>آراء سرية تتكشف بمستوى قسوتها، القروب يصوت، الضحية تخمن</i>\n\n` +
       `🎭 <b>المافيا</b>\n/mafia — يبدأ مرحلة الانضمام\n<i>5–15 لاعب — أدوار سرية — نقاش مفتوح + تصويت كل جولة</i>\n<i>الدكتور يحمي، المحقق يكشف، المافيا تخدع</i>\n\n` +
       `🏆 /score — لوحة المتصدرين\n🛑 /stop — إيقاف اللعبة`,
@@ -374,20 +370,6 @@ export async function launchBot(): Promise<void> {
     ctx.reply("🔇 تم تعطيل الموسيقى في هذا القروب ❌\nلن يتمكن أحد من البحث عن أغاني حتى يُفعّلها الأدمن.", { parse_mode: "HTML" }).catch(() => {});
   });
 
-  bot.command("menvsmen", (ctx) => {
-    if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
-    const chatId = ctx.chat.id;
-    const text = ctx.message.text ?? "";
-    const players = extractPlayers(text, ctx.message.entities ?? []);
-    if (players.length < 2) {
-      ctx.reply(`⚠️ مثال: <code>/menvsmen @أحمد @فهد</code>\n\nأو استخدم /play 👇`, { parse_mode: "HTML" }).catch(() => {}); return;
-    }
-    if (players[0].id && players[0].id === players[1].id) {
-      ctx.reply("🚫 ما تقدر تختار نفس الشخص مرتين!").catch(() => {}); return;
-    }
-    startMenVsMen(bot, chatId, players[0], players[1], ctx.from.id);
-  });
-
   bot.command("trustbreak", (ctx) => {
     if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
     const chatId = ctx.chat.id;
@@ -418,21 +400,6 @@ export async function launchBot(): Promise<void> {
     try {
 
       // ── Menu ──────────────────────────────────────────────────────────────────
-      if (data.startsWith("menu:mvs:")) {
-        const chatId = parseInt(data.slice("menu:mvs:".length), 10);
-        if (isNaN(chatId)) return;
-        if (gameStates.has(chatId)) { await ctx.answerCbQuery("⚠️ في لعبة شغالة!").catch(() => {}); return; }
-        await ctx.answerCbQuery("🥊").catch(() => {});
-        ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
-        const sent = await bot.telegram.sendMessage(
-          chatId,
-          `🥊 <b>مين ضد مين</b>\n\n${esc(ctx.from.first_name)} اختار هذه اللعبة!\n\n✍️ <b>رد على هذه الرسالة</b> بذكر اللاعبين:\n<code>@اسم1 @اسم2</code>`,
-          { parse_mode: "HTML", reply_markup: { force_reply: true, selective: true } }
-        ).catch(() => null);
-        if (sent) pendingSetup.set(ctx.from.id, { chatId, game: "menvsmen", promptMsgId: sent.message_id });
-        return;
-      }
-
       if (data.startsWith("menu:tb:")) {
         const chatId = parseInt(data.slice("menu:tb:".length), 10);
         if (isNaN(chatId)) return;
@@ -554,20 +521,6 @@ export async function launchBot(): Promise<void> {
         const fr = ctx.from;
         startReverse(bot, chatId, fr.id, fr.username, fr.first_name ?? "", fr.last_name ?? "");
         return;
-      }
-
-      // ── مين ضد مين ────────────────────────────────────────────────────────────
-      if (data.startsWith("mvs:react:")) {
-        const parts = data.split(":");
-        const chatId = parseInt(parts[2], 10);
-        const c = parseInt(parts[3], 10) as 1 | 2;
-        if (!isNaN(chatId) && (c === 1 || c === 2)) { handleReact(bot, ctx, chatId, c); return; }
-      }
-      if (data.startsWith("mvs:")) {
-        const parts = data.split(":");
-        const chatId = parseInt(parts[2], 10);
-        const c = parseInt(parts[1], 10) as 1 | 2;
-        if (!isNaN(chatId) && (c === 1 || c === 2)) { await handleVote(bot, ctx, chatId, c); return; }
       }
 
       // ── كسر الثقة ──────────────────────────────────────────────────────────────
@@ -971,20 +924,10 @@ export async function launchBot(): Promise<void> {
       pendingSetup.delete(uid);
       const players = extractPlayers(text, ctx.message.entities ?? []);
 
-      if (pending.game === "menvsmen") {
-        if (players.length < 2) {
-          ctx.reply(`⚠️ لازم تذكر شخصين!\nمثال: <code>@أحمد @فهد</code>`, { parse_mode: "HTML" }).catch(() => {}); return;
-        }
-        if (players[0].id && players[0].id === players[1].id) {
-          ctx.reply("🚫 ما تقدر تختار نفس الشخص!").catch(() => {}); return;
-        }
-        startMenVsMen(bot, chatId, players[0], players[1], uid);
-      } else {
-        if (players.length === 0) {
-          ctx.reply(`⚠️ لازم تذكر الضحية!\nمثال: <code>@أحمد</code>`, { parse_mode: "HTML" }).catch(() => {}); return;
-        }
-        startTrustBreak(bot, chatId, players[0], uid, botUsername);
+      if (players.length === 0) {
+        ctx.reply(`⚠️ لازم تذكر الضحية!\nمثال: <code>@أحمد</code>`, { parse_mode: "HTML" }).catch(() => {}); return;
       }
+      startTrustBreak(bot, chatId, players[0], uid, botUsername);
     }
   });
 
