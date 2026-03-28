@@ -411,39 +411,40 @@ export async function generateAkinatorWinCard(
     try {
       const charImg = await cv.loadImage(charImageBuf);
 
-      // Outer golden ring glow
+      // 1. Solid dark backing circle (prevents transparency squares)
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(imgCX, imgCY, imgR + 14, 0, Math.PI * 2);
+      ctx.fillStyle = BG_DARK;
+      ctx.fill();
+      ctx.restore();
+
+      // 2. Gold glow ring (drawn behind image so no shadow bleeds over)
       ctx.save();
       ctx.beginPath();
       ctx.arc(imgCX, imgCY, imgR + 8, 0, Math.PI * 2);
       ctx.strokeStyle = GOLD;
       ctx.lineWidth = 3;
       ctx.shadowColor = GOLD;
-      ctx.shadowBlur = 28;
+      ctx.shadowBlur = 22;
       ctx.stroke();
       ctx.shadowBlur = 0;
       ctx.restore();
 
-      // Inner violet ring
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(imgCX, imgCY, imgR + 3, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(167,139,250,0.45)";
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      ctx.restore();
+      // 3. Fit image dimensions (cover mode)
+      const iw    = charImg.width  as number;
+      const ih    = charImg.height as number;
+      const scale = Math.max((imgR * 2) / iw, (imgR * 2) / ih);
+      const dw    = iw * scale;
+      const dh    = ih * scale;
 
-      // Clip to circle and draw image
+      // 4. Clip to circle, fill dark bg first (handles transparent images), draw image
       ctx.save();
       ctx.beginPath();
       ctx.arc(imgCX, imgCY, imgR, 0, Math.PI * 2);
       ctx.clip();
-
-      // Fit image into the circle (cover)
-      const iw = charImg.width  as number;
-      const ih = charImg.height as number;
-      const scale = Math.max((imgR * 2) / iw, (imgR * 2) / ih);
-      const dw = iw * scale;
-      const dh = ih * scale;
+      ctx.fillStyle = "#1a0630";
+      ctx.fill();
       ctx.drawImage(
         charImg as unknown as CanvasImageSource,
         imgCX - dw / 2,
@@ -451,13 +452,30 @@ export async function generateAkinatorWinCard(
         dw,
         dh,
       );
-
-      // Subtle dark vignette overlay inside circle
-      const vignette = ctx.createRadialGradient(imgCX, imgCY, imgR * 0.5, imgCX, imgCY, imgR);
-      vignette.addColorStop(0,   "rgba(0,0,0,0)");
-      vignette.addColorStop(1,   "rgba(0,0,30,0.35)");
+      // Subtle dark edge vignette inside circle
+      const vignette = ctx.createRadialGradient(imgCX, imgCY, imgR * 0.4, imgCX, imgCY, imgR);
+      vignette.addColorStop(0, "rgba(0,0,0,0)");
+      vignette.addColorStop(1, "rgba(0,0,20,0.45)");
       ctx.fillStyle = vignette;
       ctx.fillRect(imgCX - imgR, imgCY - imgR, imgR * 2, imgR * 2);
+      ctx.restore(); // unclip
+
+      // 5. Dark border ring on top — covers any sub-pixel square artifacts
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(imgCX, imgCY, imgR + 0.5, 0, Math.PI * 2);
+      ctx.strokeStyle = "#0d0120";
+      ctx.lineWidth   = 4;
+      ctx.stroke();
+      ctx.restore();
+
+      // 6. Violet accent ring on top of dark border
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(imgCX, imgCY, imgR + 4, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(167,139,250,0.5)";
+      ctx.lineWidth   = 1.5;
+      ctx.stroke();
       ctx.restore();
 
       // Vertical divider between text and image areas
@@ -591,7 +609,7 @@ export async function generateAkinatorWelcomeCard(): Promise<Buffer> {
   // Bullets
   const bullets = [
     "✦  فكّر في شخصية الآن ولا تخبر أحداً",
-    "✦  أجب بـ نعم / لا / لا أعلم",
+    "✦  أجب بـ نعم / لا / من الممكن / الظاهر لا / لا أعلم",
     "✦  حاول أن تكون صادقاً!",
   ];
   ctx.save();
