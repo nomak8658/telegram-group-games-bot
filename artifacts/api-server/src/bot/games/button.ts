@@ -286,15 +286,13 @@ async function startRound(bot: Telegraf, chatId: number): Promise<void> {
     const title  = isTrap
       ? TRAP_TITLES[Math.floor(Math.random() * TRAP_TITLES.length)]
       : PRESS_TITLES[Math.floor(Math.random() * PRESS_TITLES.length)];
-    const btnLbl  = isTrap ? "🔴  لا تلمسه!" : "💥  اضغط!";
+    const btnLbl  = "💥  الزر";
     const subtext = isTrap
       ? `<i>⚠️ اللي يضغط يخسر ❤️ — تحمّل الضغط!</i>`
-      : `<i>آخر واحد يضغط يخسر ❤️</i>`;
-
-    const timeoutSec = isTrap ? Math.round(TRAP_MS / 1000) : Math.round(PRESS_MS / 1000);
+      : `<i>⚠️ آخر واحد يضغط يخسر ❤️ — من يكون الأخير؟</i>`;
 
     const msg = await bot.telegram.sendMessage(chatId,
-      `${title}\n\n${subtext}\n\n⏱ ${timeoutSec}ث  |  🔢 جولة ${ss.round}`,
+      `${title}\n\n${subtext}\n\n🔢 جولة ${ss.round}`,
       {
         parse_mode: "HTML",
         ...Markup.inlineKeyboard([
