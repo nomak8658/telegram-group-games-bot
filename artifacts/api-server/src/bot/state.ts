@@ -7,32 +7,6 @@ export interface Player {
   username?: string;
 }
 
-export interface Debate {
-  category: string;
-  q: string;
-  a: string;
-  b: string;
-}
-
-export interface MenVsMenState {
-  type: "menvsmen";
-  phase: "arguing" | "voting" | "done";
-  player1: Player;
-  player2: Player;
-  votes: Map<number, 1 | 2>;
-  liveReacts: Map<number, 1 | 2>;
-  debate?: Debate;
-  reactMsgId?: number;
-  voteMsgId?: number;
-  startedBy: number;
-  chatId: number;
-  argTimer?: ReturnType<typeof setTimeout>;
-  warnTimer?: ReturnType<typeof setTimeout>;
-  warnTimer2?: ReturnType<typeof setTimeout>;
-  voteTimer?: ReturnType<typeof setTimeout>;
-  voteWarnTimer?: ReturnType<typeof setTimeout>;
-}
-
 export interface TrustBreakState {
   type: "trustbreak";
   phase: "joining" | "collecting" | "revealing" | "voting" | "guessing" | "done";
@@ -202,6 +176,10 @@ export interface BombState {
   bombTimer?: ReturnType<typeof setTimeout>;
   bombSeq: number;      // increments on every new assignment; guards stale timer callbacks
   passing: boolean;     // true while a pass is being processed; blocks concurrent passes
+  bombAssignedAt?:        number;   // timestamp when current bomb was assigned
+  bombDurationMs?:        number;   // total timer for current assignment
+  bombMsgIsPhoto?:        boolean;  // true if bomb card is a photo
+  bombCountdownInterval?: ReturnType<typeof setInterval>;
 }
 
 // ─── Stopwatch (سلك الموت الموقوت) ────────────────────────────────────────────
@@ -397,7 +375,7 @@ export interface ReverseState {
   countdownTimer?: ReturnType<typeof setInterval>;
 }
 
-export type GameState = MenVsMenState | TrustBreakState | MafiaState | OutsiderState | CircleState | BombState | StopwatchState | UnoState | RpsState | CouchState | XoState | ReverseState;
+export type GameState = TrustBreakState | MafiaState | OutsiderState | CircleState | BombState | StopwatchState | UnoState | RpsState | CouchState | XoState | ReverseState;
 
 export const gameStates = new Map<number, GameState>();
 export const privateUserToGame = new Map<number, number>();
@@ -467,7 +445,7 @@ export function recordGame(chatId: number, players: (Player | MafiaPlayer)[]): v
 
 export interface PendingSetup {
   chatId: number;
-  game: "menvsmen" | "trustbreak";
+  game: "trustbreak";
   promptMsgId: number;
 }
 export const pendingSetup = new Map<number, PendingSetup>();
@@ -509,11 +487,7 @@ export function clearGame(chatId: number): void {
   const s = gameStates.get(chatId);
   if (!s) return;
 
-  if (s.type === "menvsmen") {
-    [s.argTimer, s.warnTimer, s.warnTimer2, s.voteTimer, s.voteWarnTimer].forEach(
-      (t) => t && clearTimeout(t)
-    );
-  } else if (s.type === "trustbreak") {
+  if (s.type === "trustbreak") {
     [s.joinTimer, s.joinWarnTimer, s.collectTimer, s.collectWarnTimer, s.voteTimer].forEach(
       (t) => t && clearTimeout(t)
     );
@@ -540,6 +514,7 @@ export function clearGame(chatId: number): void {
     for (const uid of s.players.keys()) privateUserToGame.delete(uid);
   } else if (s.type === "bomb") {
     [s.joinTimer, s.joinWarnTimer, s.bombTimer].forEach((t) => t && clearTimeout(t));
+    if (s.bombCountdownInterval) clearInterval(s.bombCountdownInterval);
     for (const uid of s.players.keys()) privateUserToGame.delete(uid);
   } else if (s.type === "stopwatch") {
     if (s.countdownInterval) clearInterval(s.countdownInterval);
