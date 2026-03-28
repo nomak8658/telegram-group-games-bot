@@ -14,6 +14,24 @@ import {
 
 const MIN_PLAYERS = 3;
 
+// ─── Countdown helpers ─────────────────────────────────────────────────────────
+const editBusy = new Map<number, boolean>();
+
+function timerBar(remaining: number, total: number, len = 10): string {
+  const ratio  = Math.max(0, Math.min(1, remaining / total));
+  const filled = Math.round(ratio * len);
+  return "▰".repeat(filled) + "▱".repeat(len - filled);
+}
+
+function makeCountCaption(holderName: string, remaining: number, total: number): string {
+  const remSec = Math.max(0, Math.ceil(remaining / 1000));
+  return (
+    `💣 <b>${esc(holderName)}</b>  ‹ القنبلة عندك! ›\n` +
+    `${timerBar(remaining, total)} <b>${remSec}ث</b>\n` +
+    `<i>مرّرها بسرعة قبل ما تنفجر...</i>`
+  );
+}
+
 // Timer: starts at ~16s, shrinks 400ms per pass, min ~5s. Plus ±2s random.
 function randomTimer(passCount: number): number {
   const base   = Math.max(16_000 - passCount * 400, 5_000);
@@ -164,8 +182,9 @@ export async function handleBombPass(
   }
   s.passing = true;
 
-  // ── Cancel current bomb timer (invalidate via bombSeq) ─────────────────
-  if (s.bombTimer) { clearTimeout(s.bombTimer); s.bombTimer = undefined; }
+  // ── Cancel current bomb timer and countdown (invalidate via bombSeq) ─────
+  if (s.bombTimer)            { clearTimeout(s.bombTimer);             s.bombTimer            = undefined; }
+  if (s.bombCountdownInterval){ clearInterval(s.bombCountdownInterval); s.bombCountdownInterval = undefined; }
   s.bombSeq++; // any queued callback that captured the OLD seq will be ignored
 
   const passer = s.players.get(from.id)!;
@@ -257,6 +276,12 @@ async function assignBomb(bot: Telegraf, chatId: number): Promise<void> {
   const holder  = s.players.get(s.holderId)!;
   const timerMs = randomTimer(s.round);
 
+  // Clear any stale countdown from the previous holder
+  if (s.bombCountdownInterval) {
+    clearInterval(s.bombCountdownInterval);
+    s.bombCountdownInterval = undefined;
+  }
+
   // Generate bomb card photo
   const allNames = [...s.players.values()].map(p => dnB(p));
   let buf: Buffer | null = null;
@@ -264,26 +289,60 @@ async function assignBomb(bot: Telegraf, chatId: number): Promise<void> {
     buf = await generateBombHoldCard(dnB(holder), allNames, s.round);
   } catch { /* text fallback */ }
 
-  const caption =
-    `💣 <b>${esc(dnB(holder))}</b>  ‹ القنبلة عندك! ›\n` +
-    `<i>مرّرها بسرعة قبل ما تنفجر...</i>`;
+  const caption = makeCountCaption(dnB(holder), timerMs, timerMs);
+  const passKb  = buildPassKeyboard(chatId, s);
 
   let sent: { message_id: number } | null = null;
+  let isPhoto = false;
   if (buf) {
     sent = await bot.telegram.sendPhoto(chatId, { source: buf }, {
       caption, parse_mode: "HTML",
-      ...buildPassKeyboard(chatId, s),
+      ...passKb,
     }).catch(() => null);
+    if (sent) isPhoto = true;
   }
   // Fallback to text if photo fails
   if (!sent) {
     sent = await bot.telegram.sendMessage(chatId, caption, {
       parse_mode: "HTML",
-      ...buildPassKeyboard(chatId, s),
+      ...passKb,
     }).catch(() => null);
   }
 
-  if (sent) s.bombMsgId = sent.message_id;
+  if (sent) {
+    s.bombMsgId      = sent.message_id;
+    s.bombAssignedAt = Date.now();
+    s.bombDurationMs = timerMs;
+    s.bombMsgIsPhoto = isPhoto;
+  }
+
+  // ── Countdown interval: edit the bomb card every 2s ───────────────────
+  if (s.bombMsgId) {
+    const msgId    = s.bombMsgId;
+    const duration = timerMs;
+    s.bombCountdownInterval = setInterval(async () => {
+      if (editBusy.get(chatId)) return;
+      const st = gameStates.get(chatId);
+      if (!st || st.type !== "bomb" || st.phase !== "playing" || st.bombMsgId !== msgId) return;
+      const elapsed   = Date.now() - (st.bombAssignedAt ?? Date.now());
+      const remaining = Math.max(0, duration - elapsed);
+      const h         = st.players.get(st.holderId);
+      if (!h) return;
+      const newCaption = makeCountCaption(dnB(h), remaining, duration);
+      const kb         = buildPassKeyboard(chatId, st);
+      editBusy.set(chatId, true);
+      if (st.bombMsgIsPhoto) {
+        await bot.telegram.editMessageCaption(chatId, msgId, undefined, newCaption, {
+          parse_mode: "HTML", ...kb,
+        }).catch(() => {});
+      } else {
+        await bot.telegram.editMessageText(chatId, msgId, undefined, newCaption, {
+          parse_mode: "HTML", ...kb,
+        }).catch(() => {});
+      }
+      editBusy.delete(chatId);
+    }, 2_000);
+  }
 
   // ── Schedule explosion with sequence guard ────────────────────────────
   s.bombSeq++;
@@ -300,6 +359,9 @@ async function assignBomb(bot: Telegraf, chatId: number): Promise<void> {
 async function explodeBomb(bot: Telegraf, chatId: number): Promise<void> {
   const s = gameStates.get(chatId);
   if (!s || s.type !== "bomb" || s.phase !== "playing") return;
+
+  // Stop countdown
+  if (s.bombCountdownInterval) { clearInterval(s.bombCountdownInterval); s.bombCountdownInterval = undefined; }
 
   // Snapshot the holder at the TIME of explosion
   const holder = s.players.get(s.holderId);
