@@ -366,7 +366,23 @@ export interface XoState {
   turnTimeoutId?:  ReturnType<typeof setTimeout>;
 }
 
-export type GameState = MenVsMenState | TrustBreakState | MafiaState | OutsiderState | CircleState | BombState | StopwatchState | UnoState | RpsState | CouchState | XoState;
+// ─── Akinator ──────────────────────────────────────────────────────────────────
+
+export interface AkinatorState {
+  type:          "akinator";
+  chatId:        number;
+  userId:        number;
+  msgId:         number | null;
+  step:          number;
+  scores:        Record<string, number>;
+  askedKeys:     string[];
+  currentKey:    string | null;
+  phase:         "playing" | "guessing";
+  guessAttempts: number;
+  triedChars:    string[];
+}
+
+export type GameState = MenVsMenState | TrustBreakState | MafiaState | OutsiderState | CircleState | BombState | StopwatchState | UnoState | RpsState | CouchState | XoState | AkinatorState;
 
 export const gameStates = new Map<number, GameState>();
 export const privateUserToGame = new Map<number, number>();
