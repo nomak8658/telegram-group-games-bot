@@ -303,6 +303,7 @@ export async function generateAkinatorGuessCard(
 export async function generateAkinatorWinCard(
   charName: string,
   steps: number,
+  charImageBuf: Buffer | null = null,
 ): Promise<Buffer> {
   await ensureFonts();
   const cv = await getCanvas();
@@ -312,64 +313,166 @@ export async function generateAkinatorWinCard(
   drawBg(ctx);
   drawStars(ctx);
 
-  const glow = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, 340);
-  glow.addColorStop(0,   "rgba(250,204,21,0.30)");
-  glow.addColorStop(0.5, "rgba(124,58,237,0.15)");
+  // When image available, glow shifts left; otherwise centered
+  const hasImg  = charImageBuf !== null;
+  const textCX  = hasImg ? 380 : W / 2;
+  const imgCX   = 762;
+  const imgCY   = H / 2 + 10;
+  const imgR    = 130;
+
+  // Glow
+  const glow = ctx.createRadialGradient(
+    hasImg ? 340 : W / 2, H / 2, 0,
+    hasImg ? 340 : W / 2, H / 2, 340,
+  );
+  glow.addColorStop(0,   "rgba(250,204,21,0.28)");
+  glow.addColorStop(0.5, "rgba(124,58,237,0.13)");
   glow.addColorStop(1,   "rgba(0,0,0,0)");
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, W, H);
 
+  if (hasImg) {
+    const rightGlow = ctx.createRadialGradient(imgCX, imgCY, 0, imgCX, imgCY, 240);
+    rightGlow.addColorStop(0,   "rgba(250,204,21,0.20)");
+    rightGlow.addColorStop(0.6, "rgba(124,58,237,0.10)");
+    rightGlow.addColorStop(1,   "rgba(0,0,0,0)");
+    ctx.fillStyle = rightGlow;
+    ctx.fillRect(0, 0, W, H);
+  }
+
   drawEdgeGlow(ctx, GOLD);
 
+  // ── Header ──────────────────────────────────────────────────────────────────
   ctx.save();
-  ctx.font = "bold 56px CairoBold";
+  ctx.font = "bold 52px CairoBold";
   ctx.textAlign = "center";
   ctx.fillStyle = GOLD;
   ctx.shadowColor = GOLD;
-  ctx.shadowBlur = 40;
-  ctx.fillText("🎉 أصبت!", W / 2, 82);
+  ctx.shadowBlur = 36;
+  ctx.fillText("🎉 أصبت!", textCX, 82);
   ctx.shadowBlur = 0;
   ctx.restore();
 
-  drawHLine(ctx, 100, 0.5);
+  // Divider spans only the text half if image present
+  const divW = hasImg ? 560 : W;
+  const divG = ctx.createLinearGradient(0, 0, divW, 0);
+  divG.addColorStop(0,   "rgba(0,0,0,0)");
+  divG.addColorStop(0.5, "rgba(250,204,21,0.55)");
+  divG.addColorStop(1,   "rgba(0,0,0,0)");
+  ctx.fillStyle = divG;
+  ctx.fillRect(0, 100, divW, 1.5);
 
+  // ── "كنت أفكر في..." ────────────────────────────────────────────────────────
   ctx.save();
   ctx.font = "22px Cairo";
   ctx.textAlign = "center";
-  ctx.fillStyle = "rgba(196,181,253,0.7)";
-  ctx.fillText("كنت أفكر في...", W / 2, 150);
+  ctx.fillStyle = "rgba(196,181,253,0.72)";
+  ctx.fillText("كنت أفكر في...", textCX, 152);
   ctx.restore();
 
+  // ── Character name ───────────────────────────────────────────────────────────
   const nLen = charName.length;
-  const nfs  = nLen > 18 ? 52 : nLen > 12 ? 66 : nLen > 8 ? 78 : 90;
+  const nfs  = nLen > 18 ? (hasImg ? 38 : 52) : nLen > 12 ? (hasImg ? 50 : 66) : nLen > 8 ? (hasImg ? 60 : 78) : (hasImg ? 72 : 90);
   ctx.save();
   ctx.font = `bold ${nfs}px CairoBold`;
   ctx.textAlign = "center";
   ctx.fillStyle = "#FFFFFF";
   ctx.shadowColor = GOLD;
-  ctx.shadowBlur = 50;
-  ctx.fillText(charName, W / 2, 264);
+  ctx.shadowBlur = 46;
+  ctx.fillText(charName, textCX, 262);
   ctx.shadowBlur = 0;
   ctx.restore();
 
-  drawHLine(ctx, 300, 0.3);
+  // ── Divider 2 ────────────────────────────────────────────────────────────────
+  ctx.fillStyle = divG;
+  ctx.fillRect(0, 298, divW, 1.5);
 
+  // ── Steps ────────────────────────────────────────────────────────────────────
   ctx.save();
-  ctx.font = "22px Cairo";
+  ctx.font = "20px Cairo";
   ctx.textAlign = "center";
   ctx.fillStyle = "rgba(196,181,253,0.55)";
-  ctx.fillText(`عرفتها في ${steps} سؤالاً فقط! 🔮`, W / 2, 358);
+  ctx.fillText(`عرفتها في ${steps} سؤالاً فقط! 🔮`, textCX, 352);
   ctx.restore();
 
+  // ── Branding ─────────────────────────────────────────────────────────────────
   ctx.save();
-  ctx.font = "bold 20px CairoBold";
+  ctx.font = "bold 18px CairoBold";
   ctx.textAlign = "center";
   ctx.fillStyle = VIOLET;
   ctx.shadowColor = VIOLET;
-  ctx.shadowBlur = 12;
-  ctx.fillText("المارد العبقري لا يُغلب! ◉", W / 2, H - 52);
+  ctx.shadowBlur = 10;
+  ctx.fillText("المارد العبقري لا يُغلب! ◉", textCX, H - 44);
   ctx.shadowBlur = 0;
   ctx.restore();
+
+  // ── Character portrait ───────────────────────────────────────────────────────
+  if (hasImg && charImageBuf) {
+    try {
+      const charImg = await cv.loadImage(charImageBuf);
+
+      // Outer golden ring glow
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(imgCX, imgCY, imgR + 8, 0, Math.PI * 2);
+      ctx.strokeStyle = GOLD;
+      ctx.lineWidth = 3;
+      ctx.shadowColor = GOLD;
+      ctx.shadowBlur = 28;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.restore();
+
+      // Inner violet ring
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(imgCX, imgCY, imgR + 3, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(167,139,250,0.45)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.restore();
+
+      // Clip to circle and draw image
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(imgCX, imgCY, imgR, 0, Math.PI * 2);
+      ctx.clip();
+
+      // Fit image into the circle (cover)
+      const iw = charImg.width  as number;
+      const ih = charImg.height as number;
+      const scale = Math.max((imgR * 2) / iw, (imgR * 2) / ih);
+      const dw = iw * scale;
+      const dh = ih * scale;
+      ctx.drawImage(
+        charImg as unknown as CanvasImageSource,
+        imgCX - dw / 2,
+        imgCY - dh / 2,
+        dw,
+        dh,
+      );
+
+      // Subtle dark vignette overlay inside circle
+      const vignette = ctx.createRadialGradient(imgCX, imgCY, imgR * 0.5, imgCX, imgCY, imgR);
+      vignette.addColorStop(0,   "rgba(0,0,0,0)");
+      vignette.addColorStop(1,   "rgba(0,0,30,0.35)");
+      ctx.fillStyle = vignette;
+      ctx.fillRect(imgCX - imgR, imgCY - imgR, imgR * 2, imgR * 2);
+      ctx.restore();
+
+      // Vertical divider between text and image areas
+      const divLine = ctx.createLinearGradient(0, 80, 0, H - 60);
+      divLine.addColorStop(0,   "rgba(0,0,0,0)");
+      divLine.addColorStop(0.3, "rgba(167,139,250,0.25)");
+      divLine.addColorStop(0.7, "rgba(167,139,250,0.25)");
+      divLine.addColorStop(1,   "rgba(0,0,0,0)");
+      ctx.fillStyle = divLine;
+      ctx.fillRect(580, 0, 1.5, H);
+
+    } catch {
+      // If image rendering fails, no crash
+    }
+  }
 
   return canvas.toBuffer("image/png") as unknown as Buffer;
 }
