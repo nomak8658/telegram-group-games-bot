@@ -1,5 +1,6 @@
 import type { Telegraf } from "telegraf";
-import { Markup }   from "telegraf";
+import { Markup } from "telegraf";
+import OpenAI from "openai";
 import { gameStates, clearGame } from "../state.js";
 import type { AkinatorState } from "../state.js";
 import {
@@ -10,152 +11,109 @@ import {
   generateAkinatorWelcomeCard,
 } from "../akinatorCard.js";
 
-// ─── Character Database ───────────────────────────────────────────────────────
+// ─── OpenAI client ────────────────────────────────────────────────────────────
 
-type A = 1 | 0;
-interface Char {
-  ar:   string;
-  wiki: string; // Wikipedia page title (English)
-  a:    Record<string, A | undefined>;
-}
+const openai = new OpenAI({
+  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+  apiKey:  process.env.AI_INTEGRATIONS_OPENAI_API_KEY ?? "dummy",
+});
 
-const CHARS: Char[] = [
-  // ── Real people ──────────────────────────────────────────────────────────────
-  { ar: "محمد صلاح",           wiki: "Mohamed Salah",
-    a: { real:1,male:1,human:1,alive:1,arabic:1,modern:1,athlete:1,soccer:1,singer:0,actor:0,politician:0,hero:0,villain:0,cartoon:0,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:0,flying:0 } },
-  { ar: "كريستيانو رونالدو",   wiki: "Cristiano Ronaldo",
-    a: { real:1,male:1,human:1,alive:1,arabic:0,modern:1,athlete:1,soccer:1,singer:0,actor:0,politician:0,hero:0,villain:0,cartoon:0,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:0,flying:0 } },
-  { ar: "ليونيل ميسي",         wiki: "Lionel Messi",
-    a: { real:1,male:1,human:1,alive:1,arabic:0,modern:1,athlete:1,soccer:1,singer:0,actor:0,politician:0,hero:0,villain:0,cartoon:0,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:0,flying:0 } },
-  { ar: "نيمار",               wiki: "Neymar",
-    a: { real:1,male:1,human:1,alive:1,arabic:0,modern:1,athlete:1,soccer:1,singer:0,actor:0,politician:0,hero:0,villain:0,cartoon:0,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:0,flying:0 } },
-  { ar: "كيليان مبابي",        wiki: "Kylian Mbappé",
-    a: { real:1,male:1,human:1,alive:1,arabic:0,modern:1,athlete:1,soccer:1,singer:0,actor:0,politician:0,hero:0,villain:0,cartoon:0,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:0,flying:0 } },
-  { ar: "مايكل جوردان",        wiki: "Michael Jordan",
-    a: { real:1,male:1,human:1,alive:1,arabic:0,modern:1,athlete:1,soccer:0,singer:0,actor:0,politician:0,hero:0,villain:0,cartoon:0,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:0,flying:0 } },
-  { ar: "مايكل جاكسون",        wiki: "Michael Jackson",
-    a: { real:1,male:1,human:1,alive:0,arabic:0,modern:0,athlete:0,soccer:0,singer:1,actor:0,politician:0,hero:0,villain:0,cartoon:0,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:0,flying:0 } },
-  { ar: "شاكيرا",              wiki: "Shakira",
-    a: { real:1,male:0,human:1,alive:1,arabic:0,modern:1,athlete:0,soccer:0,singer:1,actor:0,politician:0,hero:0,villain:0,cartoon:0,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:0,flying:0 } },
-  { ar: "بيونسيه",             wiki: "Beyoncé",
-    a: { real:1,male:0,human:1,alive:1,arabic:0,modern:1,athlete:0,soccer:0,singer:1,actor:0,politician:0,hero:0,villain:0,cartoon:0,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:0,flying:0 } },
-  { ar: "إيلون ماسك",          wiki: "Elon Musk",
-    a: { real:1,male:1,human:1,alive:1,arabic:0,modern:1,athlete:0,soccer:0,singer:0,actor:0,politician:0,hero:0,villain:0,cartoon:0,anime:0,disney:0,animal:0,royal:0,scientist:1,superpower:0,flying:0 } },
-  { ar: "بيل غيتس",            wiki: "Bill Gates",
-    a: { real:1,male:1,human:1,alive:1,arabic:0,modern:1,athlete:0,soccer:0,singer:0,actor:0,politician:0,hero:0,villain:0,cartoon:0,anime:0,disney:0,animal:0,royal:0,scientist:1,superpower:0,flying:0 } },
-  { ar: "باراك أوباما",         wiki: "Barack Obama",
-    a: { real:1,male:1,human:1,alive:1,arabic:0,modern:1,athlete:0,soccer:0,singer:0,actor:0,politician:1,hero:0,villain:0,cartoon:0,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:0,flying:0 } },
-  { ar: "الملك عبدالله الثاني", wiki: "Abdullah II",
-    a: { real:1,male:1,human:1,alive:1,arabic:1,modern:1,athlete:0,soccer:0,singer:0,actor:0,politician:1,hero:0,villain:0,cartoon:0,anime:0,disney:0,animal:0,royal:1,scientist:0,superpower:0,flying:0 } },
-  { ar: "الملك تشارلز الثالث", wiki: "Charles III",
-    a: { real:1,male:1,human:1,alive:1,arabic:0,modern:1,athlete:0,soccer:0,singer:0,actor:0,politician:1,hero:0,villain:0,cartoon:0,anime:0,disney:0,animal:0,royal:1,scientist:0,superpower:0,flying:0 } },
-  { ar: "أم كلثوم",            wiki: "Umm Kulthum",
-    a: { real:1,male:0,human:1,alive:0,arabic:1,modern:0,athlete:0,soccer:0,singer:1,actor:0,politician:0,hero:0,villain:0,cartoon:0,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:0,flying:0 } },
-  { ar: "محمد علي كلاي",       wiki: "Muhammad Ali",
-    a: { real:1,male:1,human:1,alive:0,arabic:0,modern:0,athlete:1,soccer:0,singer:0,actor:0,politician:0,hero:0,villain:0,cartoon:0,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:0,flying:0 } },
-  { ar: "ألبرت أينشتاين",      wiki: "Albert Einstein",
-    a: { real:1,male:1,human:1,alive:0,arabic:0,modern:0,athlete:0,soccer:0,singer:0,actor:0,politician:0,hero:0,villain:0,cartoon:0,anime:0,disney:0,animal:0,royal:0,scientist:1,superpower:0,flying:0 } },
-  { ar: "ليوناردو دي كابريو",  wiki: "Leonardo DiCaprio",
-    a: { real:1,male:1,human:1,alive:1,arabic:0,modern:1,athlete:0,soccer:0,singer:0,actor:1,politician:0,hero:0,villain:0,cartoon:0,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:0,flying:0 } },
-  { ar: "أنجلينا جولي",        wiki: "Angelina Jolie",
-    a: { real:1,male:0,human:1,alive:1,arabic:0,modern:1,athlete:0,soccer:0,singer:0,actor:1,politician:0,hero:0,villain:0,cartoon:0,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:0,flying:0 } },
-  { ar: "ستيف هارفي",          wiki: "Steve Harvey",
-    a: { real:1,male:1,human:1,alive:1,arabic:0,modern:1,athlete:0,soccer:0,singer:0,actor:1,politician:0,hero:0,villain:0,cartoon:0,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:0,flying:0 } },
-  // ── Fictional characters ──────────────────────────────────────────────────────
-  { ar: "سبايدرمان",           wiki: "Spider-Man",
-    a: { real:0,male:1,human:1,alive:1,arabic:0,modern:1,athlete:0,soccer:0,singer:0,actor:0,politician:0,hero:1,villain:0,cartoon:1,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:1,flying:1 } },
-  { ar: "باتمان",              wiki: "Batman",
-    a: { real:0,male:1,human:1,alive:1,arabic:0,modern:1,athlete:0,soccer:0,singer:0,actor:0,politician:0,hero:1,villain:0,cartoon:1,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:0,flying:0 } },
-  { ar: "سوبرمان",             wiki: "Superman",
-    a: { real:0,male:1,human:0,alive:1,arabic:0,modern:1,athlete:0,soccer:0,singer:0,actor:0,politician:0,hero:1,villain:0,cartoon:1,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:1,flying:1 } },
-  { ar: "أيرون مان",           wiki: "Iron Man",
-    a: { real:0,male:1,human:1,alive:0,arabic:0,modern:1,athlete:0,soccer:0,singer:0,actor:0,politician:0,hero:1,villain:0,cartoon:1,anime:0,disney:0,animal:0,royal:0,scientist:1,superpower:1,flying:1 } },
-  { ar: "ثانوس",               wiki: "Thanos",
-    a: { real:0,male:1,human:0,alive:0,arabic:0,modern:1,athlete:0,soccer:0,singer:0,actor:0,politician:0,hero:0,villain:1,cartoon:1,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:1,flying:0 } },
-  { ar: "جوكر",                wiki: "Joker (character)",
-    a: { real:0,male:1,human:1,alive:1,arabic:0,modern:1,athlete:0,soccer:0,singer:0,actor:0,politician:0,hero:0,villain:1,cartoon:1,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:0,flying:0 } },
-  { ar: "هاري بوتر",           wiki: "Harry Potter (character)",
-    a: { real:0,male:1,human:1,alive:1,arabic:0,modern:1,athlete:0,soccer:0,singer:0,actor:0,politician:0,hero:1,villain:0,cartoon:0,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:1,flying:1 } },
-  { ar: "فولديمورت",           wiki: "Lord Voldemort",
-    a: { real:0,male:1,human:1,alive:0,arabic:0,modern:1,athlete:0,soccer:0,singer:0,actor:0,politician:0,hero:0,villain:1,cartoon:0,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:1,flying:0 } },
-  { ar: "دارث فيدر",           wiki: "Darth Vader",
-    a: { real:0,male:1,human:0,alive:0,arabic:0,modern:0,athlete:0,soccer:0,singer:0,actor:0,politician:0,hero:0,villain:1,cartoon:1,anime:0,disney:1,animal:0,royal:0,scientist:0,superpower:1,flying:0 } },
-  { ar: "يودا",                wiki: "Yoda",
-    a: { real:0,male:1,human:0,alive:0,arabic:0,modern:0,athlete:0,soccer:0,singer:0,actor:0,politician:0,hero:1,villain:0,cartoon:1,anime:0,disney:1,animal:0,royal:0,scientist:0,superpower:1,flying:0 } },
-  { ar: "شيرلوك هولمز",        wiki: "Sherlock Holmes",
-    a: { real:0,male:1,human:1,alive:1,arabic:0,modern:0,athlete:0,soccer:0,singer:0,actor:0,politician:0,hero:1,villain:0,cartoon:0,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:0,flying:0 } },
-  { ar: "دراكولا",             wiki: "Count Dracula",
-    a: { real:0,male:1,human:0,alive:1,arabic:0,modern:0,athlete:0,soccer:0,singer:0,actor:0,politician:0,hero:0,villain:1,cartoon:0,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:1,flying:1 } },
-  { ar: "سيمبا",               wiki: "Simba",
-    a: { real:0,male:1,human:0,alive:1,arabic:0,modern:0,athlete:0,soccer:0,singer:0,actor:0,politician:0,hero:1,villain:0,cartoon:1,anime:0,disney:1,animal:1,royal:1,scientist:0,superpower:0,flying:0 } },
-  { ar: "إلسا",                wiki: "Elsa (Frozen)",
-    a: { real:0,male:0,human:1,alive:1,arabic:0,modern:0,athlete:0,soccer:0,singer:1,actor:0,politician:0,hero:1,villain:0,cartoon:1,anime:0,disney:1,animal:0,royal:1,scientist:0,superpower:1,flying:0 } },
-  { ar: "علاء الدين",          wiki: "Aladdin",
-    a: { real:0,male:1,human:1,alive:1,arabic:1,modern:0,athlete:0,soccer:0,singer:0,actor:0,politician:0,hero:1,villain:0,cartoon:1,anime:0,disney:1,animal:0,royal:0,scientist:0,superpower:0,flying:0 } },
-  { ar: "ميكي ماوس",           wiki: "Mickey Mouse",
-    a: { real:0,male:1,human:0,alive:1,arabic:0,modern:1,athlete:0,soccer:0,singer:0,actor:0,politician:0,hero:1,villain:0,cartoon:1,anime:0,disney:1,animal:1,royal:0,scientist:0,superpower:0,flying:0 } },
-  { ar: "ناروتو",              wiki: "Naruto Uzumaki",
-    a: { real:0,male:1,human:1,alive:1,arabic:0,modern:1,athlete:0,soccer:0,singer:0,actor:0,politician:0,hero:1,villain:0,cartoon:1,anime:1,disney:0,animal:0,royal:0,scientist:0,superpower:1,flying:0 } },
-  { ar: "غوكو",                wiki: "Goku",
-    a: { real:0,male:1,human:0,alive:1,arabic:0,modern:1,athlete:0,soccer:0,singer:0,actor:0,politician:0,hero:1,villain:0,cartoon:1,anime:1,disney:0,animal:0,royal:0,scientist:0,superpower:1,flying:1 } },
-  { ar: "لوفي",                wiki: "Monkey D. Luffy",
-    a: { real:0,male:1,human:1,alive:1,arabic:0,modern:1,athlete:0,soccer:0,singer:0,actor:0,politician:0,hero:1,villain:0,cartoon:1,anime:1,disney:0,animal:0,royal:0,scientist:0,superpower:1,flying:0 } },
-  { ar: "سايتاما",             wiki: "Saitama (One-Punch Man)",
-    a: { real:0,male:1,human:1,alive:1,arabic:0,modern:1,athlete:0,soccer:0,singer:0,actor:0,politician:0,hero:1,villain:0,cartoon:1,anime:1,disney:0,animal:0,royal:0,scientist:0,superpower:1,flying:0 } },
-  { ar: "جحا",                 wiki: "Juha (folklore)",
-    a: { real:0,male:1,human:1,alive:0,arabic:1,modern:0,athlete:0,soccer:0,singer:0,actor:0,politician:0,hero:0,villain:0,cartoon:1,anime:0,disney:0,animal:0,royal:0,scientist:0,superpower:0,flying:0 } },
-  { ar: "موانا",               wiki: "Moana (Disney)",
-    a: { real:0,male:0,human:1,alive:1,arabic:0,modern:0,athlete:0,soccer:0,singer:1,actor:0,politician:0,hero:1,villain:0,cartoon:1,anime:0,disney:1,animal:0,royal:1,scientist:0,superpower:0,flying:0 } },
-];
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-// ─── Questions ────────────────────────────────────────────────────────────────
+const MAX_STEPS = 20;
 
-const QUESTIONS: Record<string, string> = {
-  real:       "هل شخصيتك شخص حقيقي ومشهور؟",
-  male:       "هل شخصيتك من الذكور؟",
-  human:      "هل شخصيتك إنسان؟",
-  alive:      "هل لا تزال شخصيتك حية حتى اليوم؟",
-  arabic:     "هل شخصيتك عربية أو من العالم العربي؟",
-  modern:     "هل تعيش شخصيتك في العصر الحديث؟",
-  superpower: "هل لشخصيتك قوى خارقة أو سحرية؟",
-  athlete:    "هل شخصيتك رياضي/ة محترف/ة؟",
-  soccer:     "هل شخصيتك لاعب/ة كرة القدم؟",
-  singer:     "هل شخصيتك مغني/ة أو فنانة موسيقية؟",
-  actor:      "هل شخصيتك ممثل/ة في السينما أو التلفاز؟",
-  politician: "هل شخصيتك سياسي/ة أو زعيم دولة؟",
-  hero:       "هل شخصيتك بطل/ة تحارب من أجل الخير؟",
-  villain:    "هل شخصيتك شرير/ة أو الخصم الرئيسي؟",
-  cartoon:    "هل شخصيتك من كرتون أو رسوم متحركة؟",
-  anime:      "هل شخصيتك من أنمي ياباني؟",
-  disney:     "هل شخصيتك من إنتاج ديزني؟",
-  animal:     "هل شخصيتك حيوان أو مخلوق غير بشري؟",
-  royal:      "هل شخصيتك ملك/ة أو أمير/ة أو من العائلة المالكة؟",
-  scientist:  "هل شخصيتك عالم/ة أو مخترع/ة أو رائد أعمال تقني؟",
-  flying:     "هل تستطيع شخصيتك الطيران؟",
+const ANSWER_MAP: Record<string, string> = {
+  yes:    "نعم",
+  no:     "لا",
+  maybe:  "من الممكن",
+  probno: "الظاهر لا",
+  dk:     "لا أعلم",
 };
 
-const MAX_STEPS   = 20;
-const GUESS_AFTER = 15;
+const ANSWER_EMOJI: Record<string, string> = {
+  yes: "✅", no: "❌", maybe: "🔶", probno: "🔸", dk: "🤷",
+};
 
-// ─── Wikipedia image fetch ────────────────────────────────────────────────────
+// ─── AI System Prompt ─────────────────────────────────────────────────────────
 
-async function fetchWithTimeout(url: string, ms = 6000): Promise<Response> {
-  const ctrl = new AbortController();
+const SYSTEM_PROMPT = `أنت "المارد العبقري" — مارد ذكي يلعب لعبة أكيناتور باللغة العربية.
+هدفك: تخمين أي شخصية يفكر فيها المستخدم — حقيقية أو خيالية، عربية أو عالمية.
+
+قواعد صارمة:
+1. اطرح سؤالاً واحداً فقط في كل رد باللغة العربية الفصحى
+2. الأسئلة تضيّق دائرة الشخصيات بكفاءة عالية (مثال: هل هو شخصية حقيقية؟ هل هو رياضي؟ هل هو حي الآن؟)
+3. استخدم كل إجابة سابقة لتحليل الشخصية وطرح سؤال أذكى
+4. بعد 6-10 أسئلة مع إجابات واضحة، خمّن إذا كنت واثقاً بما يكفي
+5. تستطيع تخمين أي شخصية: لاعبون، فنانون، ممثلون، شخصيات كرتونية، أنمي، ألعاب، تاريخ، أساطير، إلخ
+6. الأجوبة الممكنة للمستخدم: نعم / لا / من الممكن / الظاهر لا / لا أعلم
+7. لا تكرر أسئلة طُرحت من قبل أبداً
+8. إذا خُمِّنت شخصية وكانت خاطئة، اطرح أسئلة جديدة لتضيّق أكثر ثم خمّن مجدداً
+9. كن واثقاً وجريئاً في التخمين عند وضوح الصورة
+
+أجب دائماً بـ JSON فقط، بدون أي نص آخر خارج الـ JSON:
+- للسؤال: {"action":"question","content":"نص السؤال بالعربية"}
+- للتخمين: {"action":"guess","content":"اسم الشخصية بالعربية"}`;
+
+// ─── AI caller ────────────────────────────────────────────────────────────────
+
+async function callAI(
+  history: Array<{ question: string; answer: string }>,
+  triedChars: string[],
+): Promise<{ action: "question" | "guess"; content: string }> {
+  const lines: string[] = [];
+
+  if (history.length === 0) {
+    lines.push("ابدأ اللعبة بأول سؤال ذكي يضيّق دائرة الشخصيات.");
+  } else {
+    lines.push("تاريخ الأسئلة والأجوبة حتى الآن:");
+    for (const h of history) {
+      lines.push(`• ${h.question} — ${h.answer}`);
+    }
+  }
+
+  if (triedChars.length > 0) {
+    lines.push(`\nجرّبت هذه التخمينات وكانت خاطئة: ${triedChars.join("، ")}`);
+    lines.push("لا تعد لتخمين نفس الشخصية.");
+  }
+
+  const resp = await openai.chat.completions.create({
+    model: "gpt-5-mini",
+    max_completion_tokens: 150,
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user",   content: lines.join("\n") },
+    ],
+  });
+
+  const text = resp.choices[0]?.message?.content?.trim() ?? "";
+  const match = text.match(/\{[\s\S]*?\}/);
+  if (!match) throw new Error("Bad AI response: " + text);
+
+  const parsed = JSON.parse(match[0]) as { action?: string; content?: string };
+  if (!parsed.action || !parsed.content) throw new Error("Missing fields in AI JSON");
+  if (parsed.action !== "question" && parsed.action !== "guess") throw new Error("Unknown action");
+
+  return { action: parsed.action, content: parsed.content.trim() };
+}
+
+// ─── Wikipedia image fetch (Arabic) ──────────────────────────────────────────
+
+async function fetchWithTimeout(url: string, ms = 7000): Promise<Response> {
+  const ctrl  = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms);
   try {
-    const res = await fetch(url, {
+    return await fetch(url, {
       headers: { "User-Agent": "TelegramGameBot/1.0" },
       signal: ctrl.signal,
     });
-    return res;
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function fetchWikiImage(wikiTitle: string): Promise<Buffer | null> {
+async function fetchWikiImage(charName: string): Promise<Buffer | null> {
   try {
-    const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(wikiTitle)}`;
+    const url = `https://ar.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(charName)}`;
     const res = await fetchWithTimeout(url);
     if (!res.ok) return null;
     const data = await res.json() as { thumbnail?: { source?: string } };
@@ -169,81 +127,20 @@ async function fetchWikiImage(wikiTitle: string): Promise<Buffer | null> {
   }
 }
 
-function charByName(name: string): Char | undefined {
-  return CHARS.find(c => c.ar === name);
-}
-
-// ─── Algorithm ────────────────────────────────────────────────────────────────
-
-function initScores(): Record<string, number> {
-  const scores: Record<string, number> = {};
-  for (const c of CHARS) scores[c.ar] = 1.0;
-  return scores;
-}
-
-function updateScores(
-  scores: Record<string, number>,
-  key: string,
-  answer: "yes" | "no" | "dk",
-): Record<string, number> {
-  const s = { ...scores };
-  for (const c of CHARS) {
-    const v = c.a[key];
-    if (answer === "yes") {
-      s[c.ar]! *= v === 1 ? 2.0 : v === 0 ? 0.04 : 0.5;
-    } else if (answer === "no") {
-      s[c.ar]! *= v === 0 ? 2.0 : v === 1 ? 0.04 : 0.5;
-    }
-    if (s[c.ar]! < 1e-9) s[c.ar] = 1e-9;
-  }
-  return s;
-}
-
-function pickBestQuestion(scores: Record<string, number>, askedKeys: string[]): string | null {
-  const total = Object.values(scores).reduce((a, b) => a + b, 0);
-  let bestKey: string | null = null;
-  let bestDist = Infinity;
-
-  for (const key of Object.keys(QUESTIONS)) {
-    if (askedKeys.includes(key)) continue;
-    let yes = 0;
-    for (const c of CHARS) {
-      const v = c.a[key];
-      const sc = scores[c.ar] ?? 0;
-      yes += v === 1 ? sc : v === undefined ? sc * 0.5 : 0;
-    }
-    const ratio = yes / (total + 1e-9);
-    const dist  = Math.abs(ratio - 0.5);
-    if (dist < bestDist) { bestDist = dist; bestKey = key; }
-  }
-  return bestKey;
-}
-
-function topChars(scores: Record<string, number>): string[] {
-  return Object.entries(scores)
-    .sort(([, a], [, b]) => b - a)
-    .map(([n]) => n);
-}
-
-function confidence(scores: Record<string, number>): number {
-  const vals  = Object.values(scores);
-  const total = vals.reduce((a, b) => a + b, 0);
-  const top   = Math.max(...vals);
-  return top / (total + 1e-9);
-}
-
-function shouldGuess(scores: Record<string, number>, step: number): boolean {
-  return confidence(scores) > 0.60 || step >= GUESS_AFTER;
-}
-
 // ─── Keyboard helpers ─────────────────────────────────────────────────────────
 
 function answerKb(chatId: number) {
   return Markup.inlineKeyboard([
     [
-      Markup.button.callback("✅  نعم",     `aki:yes:${chatId}`),
-      Markup.button.callback("❌  لا",       `aki:no:${chatId}`),
-      Markup.button.callback("🤷  لا أعلم", `aki:dk:${chatId}`),
+      Markup.button.callback("✅  نعم",         `aki:yes:${chatId}`),
+      Markup.button.callback("❌  لا",           `aki:no:${chatId}`),
+    ],
+    [
+      Markup.button.callback("🔶  من الممكن",   `aki:maybe:${chatId}`),
+      Markup.button.callback("🔸  الظاهر لا",   `aki:probno:${chatId}`),
+    ],
+    [
+      Markup.button.callback("🤷  أنا لا أعلم", `aki:dk:${chatId}`),
     ],
   ]);
 }
@@ -257,7 +154,7 @@ function guessKb(chatId: number) {
   ]);
 }
 
-// ─── Send / replace message ───────────────────────────────────────────────────
+// ─── Send / replace card ──────────────────────────────────────────────────────
 
 async function sendCard(
   bot: Telegraf,
@@ -284,14 +181,40 @@ function isOwner(state: AkinatorState, userId: number): boolean {
   return state.userId === userId;
 }
 
-// ─── Game functions ───────────────────────────────────────────────────────────
+// ─── Core AI step (ask question or make a guess) ──────────────────────────────
+
+async function doAiStep(bot: Telegraf, chatId: number, state: AkinatorState): Promise<void> {
+  let ai: { action: "question" | "guess"; content: string };
+  try {
+    ai = await callAI(state.history, state.triedChars);
+  } catch {
+    bot.telegram.sendMessage(chatId, "⚠️ المارد تعثّر — جرّب مرة ثانية.").catch(() => {});
+    clearGame(chatId);
+    return;
+  }
+
+  if (ai.action === "guess") {
+    state.triedChars.push(ai.content);
+    state.guessAttempts++;
+    state.phase = "guessing";
+    const buf = await generateAkinatorGuessCard(ai.content, state.guessAttempts);
+    await sendCard(bot, chatId, state, buf, guessKb(chatId));
+  } else {
+    state.step++;
+    state.currentQuestion = ai.content;
+    const buf = await generateAkinatorQuestionCard(ai.content, state.step, MAX_STEPS);
+    await sendCard(bot, chatId, state, buf, answerKb(chatId));
+  }
+}
+
+// ─── Exported game functions ──────────────────────────────────────────────────
 
 export async function startAkinator(
   bot: Telegraf,
   chatId: number,
   userId: number,
   _username: string | undefined,
-  firstName: string,
+  _firstName: string,
   _lastName: string,
 ): Promise<void> {
   if (gameStates.has(chatId)) {
@@ -300,21 +223,20 @@ export async function startAkinator(
   }
 
   const state: AkinatorState = {
-    type:          "akinator",
+    type:            "akinator",
     chatId,
     userId,
-    msgId:         null,
-    step:          0,
-    scores:        initScores(),
-    askedKeys:     [],
-    currentKey:    null,
-    phase:         "playing",
-    guessAttempts: 0,
-    triedChars:    [],
+    msgId:           null,
+    step:            0,
+    history:         [],
+    currentQuestion: null,
+    phase:           "playing",
+    guessAttempts:   0,
+    triedChars:      [],
   };
   gameStates.set(chatId, state);
 
-  const buf = await generateAkinatorWelcomeCard();
+  const buf    = await generateAkinatorWelcomeCard();
   const startKb = Markup.inlineKeyboard([
     [Markup.button.callback("🔮  ابدأ التحدي!", `aki:start:${chatId}`)],
   ]);
@@ -336,23 +258,14 @@ export async function handleAkinatorStart(
   }
 
   await ctx.answerCbQuery("🔮").catch(() => {});
-
-  const key = pickBestQuestion(state.scores, state.askedKeys);
-  if (!key) { clearGame(chatId); return; }
-
-  state.step++;
-  state.currentKey = key;
-  state.askedKeys.push(key);
-
-  const buf = await generateAkinatorQuestionCard(QUESTIONS[key]!, state.step, MAX_STEPS);
-  await sendCard(bot, chatId, state, buf, answerKb(chatId));
+  await doAiStep(bot, chatId, state);
 }
 
 export async function handleAkinatorAnswer(
   bot: Telegraf,
   ctx: { from: { id: number }; answerCbQuery: (s?: string) => Promise<void> },
   chatId: number,
-  answer: "yes" | "no" | "dk",
+  answerKey: string,
 ): Promise<void> {
   const state = gameStates.get(chatId) as AkinatorState | undefined;
   if (!state || state.type !== "akinator" || state.phase !== "playing") return;
@@ -362,50 +275,20 @@ export async function handleAkinatorAnswer(
     return;
   }
 
-  await ctx.answerCbQuery(answer === "yes" ? "✅" : answer === "no" ? "❌" : "🤷").catch(() => {});
+  const emoji = ANSWER_EMOJI[answerKey] ?? "🤷";
+  const label = ANSWER_MAP[answerKey]  ?? "لا أعلم";
+  await ctx.answerCbQuery(emoji).catch(() => {});
 
-  if (!state.currentKey) return;
+  if (state.currentQuestion) {
+    state.history.push({ question: state.currentQuestion, answer: label });
+  }
 
-  state.scores = updateScores(state.scores, state.currentKey, answer);
-
-  if (shouldGuess(state.scores, state.step) || state.step >= MAX_STEPS) {
-    await doGuess(bot, chatId, state);
+  if (state.step >= MAX_STEPS) {
+    await doAiStep(bot, chatId, state);
     return;
   }
 
-  const key = pickBestQuestion(state.scores, state.askedKeys);
-  if (!key) {
-    await doGuess(bot, chatId, state);
-    return;
-  }
-
-  state.step++;
-  state.currentKey = key;
-  state.askedKeys.push(key);
-
-  const buf = await generateAkinatorQuestionCard(QUESTIONS[key]!, state.step, MAX_STEPS);
-  await sendCard(bot, chatId, state, buf, answerKb(chatId));
-}
-
-async function doGuess(bot: Telegraf, chatId: number, state: AkinatorState): Promise<void> {
-  const ranked = topChars(state.scores).filter(n => !state.triedChars.includes(n));
-  if (ranked.length === 0) {
-    if (state.msgId) bot.telegram.deleteMessage(chatId, state.msgId).catch(() => {});
-    state.msgId = null;
-    const buf = await generateAkinatorLoseCard();
-    const msg = await bot.telegram.sendPhoto(chatId, { source: buf });
-    state.msgId = msg.message_id;
-    clearGame(chatId);
-    return;
-  }
-
-  const guess = ranked[0]!;
-  state.triedChars.push(guess);
-  state.guessAttempts++;
-  state.phase = "guessing";
-
-  const buf = await generateAkinatorGuessCard(guess, state.guessAttempts);
-  await sendCard(bot, chatId, state, buf, guessKb(chatId));
+  await doAiStep(bot, chatId, state);
 }
 
 export async function handleAkinatorCorrect(
@@ -427,13 +310,7 @@ export async function handleAkinatorCorrect(
   state.msgId = null;
 
   const guessedChar = state.triedChars[state.triedChars.length - 1] ?? "الشخصية";
-  const char = charByName(guessedChar);
-
-  // Fetch character image from Wikipedia (best-effort)
-  let charImage: Buffer | null = null;
-  if (char?.wiki) {
-    charImage = await fetchWikiImage(char.wiki);
-  }
+  const charImage   = await fetchWikiImage(guessedChar);
 
   const buf = await generateAkinatorWinCard(guessedChar, state.step, charImage);
   await bot.telegram.sendPhoto(chatId, { source: buf });
@@ -454,16 +331,9 @@ export async function handleAkinatorWrong(
   }
 
   await ctx.answerCbQuery("❌").catch(() => {});
-
-  const wrongChar = state.triedChars[state.triedChars.length - 1];
-  if (wrongChar) state.scores[wrongChar] = 0;
-
   state.phase = "playing";
 
-  const ranked = topChars(state.scores).filter(n => !state.triedChars.includes(n));
-  const conf   = confidence(state.scores);
-
-  if (ranked.length === 0 || (state.guessAttempts >= 3 && conf < 0.3)) {
+  if (state.guessAttempts >= 4) {
     if (state.msgId) bot.telegram.deleteMessage(chatId, state.msgId).catch(() => {});
     state.msgId = null;
     const buf = await generateAkinatorLoseCard();
@@ -472,19 +342,7 @@ export async function handleAkinatorWrong(
     return;
   }
 
-  if (state.step < MAX_STEPS && !shouldGuess(state.scores, state.step)) {
-    const key = pickBestQuestion(state.scores, state.askedKeys);
-    if (key) {
-      state.step++;
-      state.currentKey = key;
-      state.askedKeys.push(key);
-      const buf = await generateAkinatorQuestionCard(QUESTIONS[key]!, state.step, MAX_STEPS);
-      await sendCard(bot, chatId, state, buf, answerKb(chatId));
-      return;
-    }
-  }
-
-  await doGuess(bot, chatId, state);
+  await doAiStep(bot, chatId, state);
 }
 
 export async function handleAkinatorStop(
