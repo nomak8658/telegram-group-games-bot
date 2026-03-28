@@ -47,14 +47,7 @@ import {
 import {
   startXo, handleXoJoin, handleXoMove, handleXoNoop,
 } from "./games/xo.js";
-import {
-  startAkinator,
-  handleAkinatorStart,
-  handleAkinatorAnswer,
-  handleAkinatorCorrect,
-  handleAkinatorWrong,
-  handleAkinatorStop,
-} from "./games/akinator.js";
+
 import type { UnoCard, RpsMove } from "./state.js";
 import { generateTopCard }    from "./topCard.js";
 import { handleMusicSearch, preWarmYtDlp }  from "./music.js";
@@ -72,8 +65,7 @@ function menuMsg() {
     `🃏 <b>أونو</b>\n<i>تخلص من أوراقك أول — لكن قُل UNO قبل الورقة الأخيرة!</i>\n\n` +
     `🪨 <b>حجر ورقة مقص</b>\n<i>تحدي مباشر بين لاعبين — الأسرع والأذكى يفوز!</i>\n\n` +
     `🛋️ <b>تحدي الكنبة</b>\n<i>فريقان عشوائيان — اجلس على الكنبة وزميلك يجاوب — أول فريق يكمل يفوز!</i>\n\n` +
-    `✕ <b>أكس أو</b>\n<i>تحدي كلاسيكي بين اثنين — أكمل صفاً أو قطراً وتفوز!</i>\n\n` +
-    `◉ <b>أكيناتور</b>\n<i>فكّر في شخصية — والمارد العبقري يحاول تخمينها من خلال الأسئلة!</i>`
+    `✕ <b>أكس أو</b>\n<i>تحدي كلاسيكي بين اثنين — أكمل صفاً أو قطراً وتفوز!</i>`
   );
 }
 
@@ -90,7 +82,6 @@ function menuKeyboard(chatId: number) {
     [Markup.button.callback("🪨  حجر ورقة مقص",           `menu:rps:${chatId}`)],
     [Markup.button.callback("🛋️  تحدي الكنبة",            `menu:couch:${chatId}`)],
     [Markup.button.callback("✕  أكس أو",                  `menu:xo:${chatId}`)],
-    [Markup.button.callback("◉  أكيناتور",                `menu:akinator:${chatId}`)],
   ]);
 }
 
@@ -349,11 +340,6 @@ export async function launchBot(): Promise<void> {
     startXo(bot, ctx.chat.id, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
   });
 
-  bot.command(["akinator", "اكيناتور", "أكيناتور", "مارد"], (ctx) => {
-    if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
-    const f = ctx.from;
-    startAkinator(bot, ctx.chat.id, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
-  });
 
   bot.command(["music_on", "تفعيل_اغاني", "تفعيل_أغاني", "تفعيل_الاغاني"], async (ctx) => {
     if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
@@ -546,51 +532,6 @@ export async function launchBot(): Promise<void> {
         const fr = ctx.from;
         startXo(bot, chatId, fr.id, fr.username, fr.first_name ?? "", fr.last_name ?? "");
         return;
-      }
-
-      if (data.startsWith("menu:akinator:")) {
-        const chatId = parseInt(data.slice("menu:akinator:".length), 10);
-        if (isNaN(chatId)) return;
-        if (gameStates.has(chatId)) { await ctx.answerCbQuery("⚠️ في لعبة شغالة!").catch(() => {}); return; }
-        await ctx.answerCbQuery("🔮").catch(() => {});
-        ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
-        const fr = ctx.from;
-        startAkinator(bot, chatId, fr.id, fr.username, fr.first_name ?? "", fr.last_name ?? "");
-        return;
-      }
-
-      // ── أكيناتور ────────────────────────────────────────────────────────────────
-      if (data.startsWith("aki:start:")) {
-        const chatId = parseInt(data.slice("aki:start:".length), 10);
-        if (!isNaN(chatId)) { await handleAkinatorStart(bot, ctx, chatId); return; }
-      }
-      if (data.startsWith("aki:yes:")) {
-        const chatId = parseInt(data.slice("aki:yes:".length), 10);
-        if (!isNaN(chatId)) { await handleAkinatorAnswer(bot, ctx, chatId, "yes"); return; }
-      }
-      if (data.startsWith("aki:no:")) {
-        const chatId = parseInt(data.slice("aki:no:".length), 10);
-        if (!isNaN(chatId)) { await handleAkinatorAnswer(bot, ctx, chatId, "no"); return; }
-      }
-      if (data.startsWith("aki:dk:")) {
-        const chatId = parseInt(data.slice("aki:dk:".length), 10);
-        if (!isNaN(chatId)) { await handleAkinatorAnswer(bot, ctx, chatId, "dk"); return; }
-      }
-      if (data.startsWith("aki:maybe:")) {
-        const chatId = parseInt(data.slice("aki:maybe:".length), 10);
-        if (!isNaN(chatId)) { await handleAkinatorAnswer(bot, ctx, chatId, "maybe"); return; }
-      }
-      if (data.startsWith("aki:probno:")) {
-        const chatId = parseInt(data.slice("aki:probno:".length), 10);
-        if (!isNaN(chatId)) { await handleAkinatorAnswer(bot, ctx, chatId, "probno"); return; }
-      }
-      if (data.startsWith("aki:correct:")) {
-        const chatId = parseInt(data.slice("aki:correct:".length), 10);
-        if (!isNaN(chatId)) { await handleAkinatorCorrect(bot, ctx, chatId); return; }
-      }
-      if (data.startsWith("aki:wrong:")) {
-        const chatId = parseInt(data.slice("aki:wrong:".length), 10);
-        if (!isNaN(chatId)) { await handleAkinatorWrong(bot, ctx, chatId); return; }
       }
 
       // ── مين ضد مين ────────────────────────────────────────────────────────────
