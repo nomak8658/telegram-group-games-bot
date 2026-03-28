@@ -117,6 +117,15 @@ export async function launchBot(): Promise<void> {
   const bot = new Telegraf(token);
   let botUsername = "bot";
 
+  const musicDisabledChats = new Set<number>();
+
+  async function isAdmin(chatId: number, userId: number): Promise<boolean> {
+    try {
+      const member = await bot.telegram.getChatMember(chatId, userId);
+      return member.status === "administrator" || member.status === "creator";
+    } catch { return false; }
+  }
+
   try {
     const me = await bot.telegram.getMe();
     botUsername = me.username ?? "bot";
@@ -328,6 +337,28 @@ export async function launchBot(): Promise<void> {
     if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
     const f = ctx.from;
     startXo(bot, ctx.chat.id, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
+  });
+
+  bot.command(["music_on", "تفعيل_اغاني", "تفعيل_أغاني", "تفعيل_الاغاني"], async (ctx) => {
+    if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
+    const chatId = ctx.chat.id;
+    const uid = ctx.from.id;
+    if (!(await isAdmin(chatId, uid))) {
+      ctx.reply("🚫 هذا الأمر للأدمنز فقط.").catch(() => {}); return;
+    }
+    musicDisabledChats.delete(chatId);
+    ctx.reply("🎵 تم تفعيل الموسيقى في هذا القروب ✅\nيمكن للأعضاء الآن البحث عن الأغاني بـ <code>يوت اسم الأغنية</code>", { parse_mode: "HTML" }).catch(() => {});
+  });
+
+  bot.command(["music_off", "تعطيل_اغاني", "تعطيل_أغاني", "تعطيل_الاغاني"], async (ctx) => {
+    if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
+    const chatId = ctx.chat.id;
+    const uid = ctx.from.id;
+    if (!(await isAdmin(chatId, uid))) {
+      ctx.reply("🚫 هذا الأمر للأدمنز فقط.").catch(() => {}); return;
+    }
+    musicDisabledChats.add(chatId);
+    ctx.reply("🔇 تم تعطيل الموسيقى في هذا القروب ❌\nلن يتمكن أحد من البحث عن أغاني حتى يُفعّلها الأدمن.", { parse_mode: "HTML" }).catch(() => {});
   });
 
   bot.command("menvsmen", (ctx) => {
@@ -827,6 +858,10 @@ export async function launchBot(): Promise<void> {
     {
       const musicMatch = /^(يوت(?:يوب)?|بحث)(\s+(.+))?$/u.exec(trimmed);
       if (musicMatch) {
+        if (musicDisabledChats.has(chatId)) {
+          ctx.reply("🔇 الموسيقى معطّلة في هذا القروب.\nالأدمن يقدر يفعّلها بـ /music_on").catch(() => {});
+          return;
+        }
         const q = (musicMatch[3] ?? "").trim();
         if (q.length > 0) {
           void handleMusicSearch(bot, chatId, q, ctx.message.message_id);
