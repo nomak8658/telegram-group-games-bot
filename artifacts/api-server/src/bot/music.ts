@@ -81,7 +81,7 @@ async function getFfmpegDir(): Promise<string | null> {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface SongInfo { title: string; id: string; duration: number; author: string; }
+interface SongInfo { title: string; url: string; duration: number; author: string; source: "soundcloud" | "youtube"; }
 interface AudioFile { buf: Buffer; ext: string; }
 
 // ─── Run yt-dlp ───────────────────────────────────────────────────────────────
@@ -105,12 +105,47 @@ function runYtDlp(
   });
 }
 
-// ─── Search ───────────────────────────────────────────────────────────────────
-// Uses 4 separate --print flags (one field per line) to avoid | in titles breaking parsing
+// ─── Search helpers ───────────────────────────────────────────────────────────
 
-async function findSong(query: string): Promise<SongInfo | null> {
-  const bin = await resolveYtDlp();
+function parsePrintOutput(
+  stdout: string,
+  maxDur: number,
+  urlPrefix: string,
+): SongInfo & { source: "soundcloud" | "youtube" } | null {
+  const lines = stdout.trim().split("\n").filter(Boolean);
+  const source: "soundcloud" | "youtube" = urlPrefix.includes("soundcloud") ? "soundcloud" : "youtube";
+  for (let i = 0; i + 3 < lines.length; i += 4) {
+    const id    = lines[i]!.trim();
+    const title = lines[i + 1]!.trim();
+    const dur   = parseFloat(lines[i + 2]!.trim());
+    const auth  = lines[i + 3]!.trim();
+    if (id && id !== "NA" && dur > 0 && dur <= maxDur) {
+      const url = source === "soundcloud" ? id : `https://www.youtube.com/watch?v=${id}`;
+      return { url, title: title || "?", duration: Math.round(dur), author: auth, source };
+    }
+  }
+  return null;
+}
 
+// ── SoundCloud search — no auth, fast, reliable on server IPs ─────────────────
+async function searchSoundCloud(bin: string, query: string): Promise<SongInfo | null> {
+  const { stdout } = await runYtDlp(bin, [
+    `scsearch5:${query}`,
+    "--print", "%(webpage_url)s",
+    "--print", "%(title)s",
+    "--print", "%(duration)s",
+    "--print", "%(uploader)s",
+    "--flat-playlist",
+    "--no-warnings",
+    "--no-playlist",
+    "--socket-timeout", "10",
+  ], 20_000).catch(e => { console.error("[music:sc-search]", e?.message); return { stdout: "", stderr: "" }; });
+
+  return parsePrintOutput(stdout, 600, "soundcloud");
+}
+
+// ── YouTube search — fallback when SoundCloud has no results ──────────────────
+async function searchYouTube(bin: string, query: string): Promise<SongInfo | null> {
   const { stdout } = await runYtDlp(bin, [
     `ytsearch10:${query}`,
     "--print", "%(id)s",
@@ -121,100 +156,82 @@ async function findSong(query: string): Promise<SongInfo | null> {
     "--no-warnings",
     "--no-playlist",
     "--socket-timeout", "10",
-    "--extractor-args", "youtube:player_client=tv_simply",
-  ], 30_000).catch(e => { console.error("[music:search]", e?.message); return { stdout: "", stderr: "" }; });
+  ], 25_000).catch(e => { console.error("[music:yt-search]", e?.message); return { stdout: "", stderr: "" }; });
 
-  // Each video produces 4 lines: id, title, duration, uploader
-  const lines = stdout.trim().split("\n").filter(Boolean);
-  for (let i = 0; i + 3 < lines.length; i += 4) {
-    const id    = lines[i]!.trim();
-    const title = lines[i + 1]!.trim();
-    const dur   = parseFloat(lines[i + 2]!.trim());
-    const auth  = lines[i + 3]!.trim();
-    if (id && id !== "NA" && dur > 0 && dur <= 600) {
-      return { id, title: title || query, duration: Math.round(dur), author: auth };
-    }
-  }
+  return parsePrintOutput(stdout, 600, "youtube");
+}
+
+async function findSong(query: string): Promise<SongInfo | null> {
+  const bin = await resolveYtDlp();
+  // Try SoundCloud first — works without cookies on any server IP
+  const sc = await searchSoundCloud(bin, query);
+  if (sc) { console.log("[music] found on SoundCloud:", sc.title); return sc; }
+  // Fallback to YouTube
+  const yt = await searchYouTube(bin, query);
+  if (yt) { console.log("[music] found on YouTube:", yt.title); return yt; }
   return null;
 }
 
 // ─── Download ─────────────────────────────────────────────────────────────────
 
 async function downloadAudio(
-  videoId: string,
+  song: SongInfo,
 ): Promise<AudioFile & { debugLog: string }> {
-  const bin   = await resolveYtDlp();
-  const ffDir = await getFfmpegDir();
-  const stamp = `${Date.now()}_${videoId}`;
+  const bin    = await resolveYtDlp();
+  const ffDir  = await getFfmpegDir();
+  const stamp  = `${Date.now()}`;
   const tmpDir = os.tmpdir();
-
-  const url = `https://www.youtube.com/watch?v=${videoId}`;
   const errors: string[] = [];
-
   const cleanUp = (p: string) => { try { unlinkSync(p); } catch {} };
 
-  const tryRead = async (p: string, ext: string): Promise<AudioFile & { debugLog: string } | null> => {
-    if (!existsSync(p)) {
-      errors.push(`file not found: ${p}`);
-      return null;
-    }
-    const buf = await readFile(p);
-    cleanUp(p);
-    return { buf, ext, debugLog: errors.join(" | ") };
-  };
+  const BASE = [song.url, "--no-warnings", "--no-playlist", "--socket-timeout", "25", "--no-part"];
 
-  // iOS + Android clients bypass PO-token requirements on datacenter IPs.
-  // tv_simply/mweb now also require cookies on many Railway IPs (YouTube 2025 policy).
-  const IOS  = ["--extractor-args", "youtube:player_client=ios"];
-  const AND  = ["--extractor-args", "youtube:player_client=android"];
-  const MWEB = ["--extractor-args", "youtube:player_client=mweb"];
-  const TV   = ["--extractor-args", "youtube:player_client=tv_simply"];
-  const WEB  = ["--extractor-args", "youtube:player_client=web"];
-  const BASE = [url, "--no-warnings", "--no-playlist", "--socket-timeout", "20", "--no-part"];
-
-  const tryAny = async (tag: string, extraArgs: string[]): Promise<AudioFile & { debugLog: string } | null> => {
+  const tryAny = async (tag: string, extraArgs: string[] = []): Promise<AudioFile & { debugLog: string } | null> => {
     const out = path.join(tmpDir, `${stamp}_${tag}.%(ext)s`);
     try {
       await runYtDlp(bin, [...BASE, ...extraArgs, "-o", out, "-f", "bestaudio", "--fixup", "never"], 120_000);
       const prefix = `${stamp}_${tag}.`;
       const found  = readdirSync(tmpDir).find(f => f.startsWith(prefix));
       if (found) {
-        const fp = path.join(tmpDir, found);
+        const fp  = path.join(tmpDir, found);
         const buf = await readFile(fp); cleanUp(fp);
         return { buf, ext: path.extname(found).slice(1) || "audio", debugLog: errors.join(" | ") };
       }
       errors.push(`${tag}: exit 0 but no file`);
-    } catch (e: any) { errors.push(`${tag}: ${e?.message?.slice(0, 120)}`); }
+    } catch (e: any) { errors.push(`${tag}: ${e?.message?.slice(0, 150)}`); }
     return null;
   };
 
-  // ── A: iOS — most reliable without PO token on server IPs ────────────────────
-  { const r = await tryAny("A_ios",  IOS);  if (r) return r; }
-
-  // ── B: Android — second best without auth ────────────────────────────────────
-  { const r = await tryAny("B_and",  AND);  if (r) return r; }
-
-  // ── C: mweb — lighter client, sometimes works when others don't ───────────────
-  { const r = await tryAny("C_mweb", MWEB); if (r) return r; }
-
-  // ── D: tv_simply — was reliable, now sometimes needs cookies ─────────────────
-  { const r = await tryAny("D_tv",   TV);   if (r) return r; }
-
-  // ── E: web — standard client last resort ─────────────────────────────────────
-  { const r = await tryAny("E_web",  WEB);  if (r) return r; }
-
-  // ── F: mp3 conversion via ffmpeg + ios (if ffmpeg available) ─────────────────
-  if (ffDir) {
-    const out = path.join(tmpDir, `${stamp}_F_mp3.mp3`);
-    try {
-      await runYtDlp(bin, [
-        ...BASE, ...IOS, "-o", out,
-        "-x", "--audio-format", "mp3", "--audio-quality", "5",
-        "--ffmpeg-location", ffDir,
-      ], 120_000);
-      const r = await tryRead(out, "mp3");
+  if (song.source === "soundcloud") {
+    // ── SoundCloud: direct download, no auth required ─────────────────────────
+    { const r = await tryAny("sc"); if (r) return r; }
+    // If mp3 conversion available
+    if (ffDir) {
+      const out = path.join(tmpDir, `${stamp}_sc_mp3.mp3`);
+      try {
+        await runYtDlp(bin, [...BASE, "-o", out, "-x", "--audio-format", "mp3", "--audio-quality", "5", "--ffmpeg-location", ffDir], 120_000);
+        if (existsSync(out)) { const buf = await readFile(out); cleanUp(out); return { buf, ext: "mp3", debugLog: errors.join(" | ") }; }
+      } catch (e: any) { errors.push(`sc_mp3: ${e?.message?.slice(0, 150)}`); cleanUp(out); }
+    }
+  } else {
+    // ── YouTube: try multiple clients ─────────────────────────────────────────
+    const clients = ["ios", "android", "mweb", "tv_simply", "web"];
+    for (const client of clients) {
+      const r = await tryAny(`yt_${client}`, ["--extractor-args", `youtube:player_client=${client}`]);
       if (r) return r;
-    } catch (e: any) { errors.push(`F_mp3: ${e?.message?.slice(0, 120)}`); cleanUp(out); }
+    }
+    // ffmpeg mp3 via ios
+    if (ffDir) {
+      const out = path.join(tmpDir, `${stamp}_yt_mp3.mp3`);
+      try {
+        await runYtDlp(bin, [
+          ...BASE, "--extractor-args", "youtube:player_client=ios",
+          "-o", out, "-x", "--audio-format", "mp3", "--audio-quality", "5",
+          "--ffmpeg-location", ffDir,
+        ], 120_000);
+        if (existsSync(out)) { const buf = await readFile(out); cleanUp(out); return { buf, ext: "mp3", debugLog: errors.join(" | ") }; }
+      } catch (e: any) { errors.push(`yt_mp3: ${e?.message?.slice(0, 150)}`); cleanUp(out); }
+    }
   }
 
   throw new Error(errors.join(" || "));
@@ -270,7 +287,7 @@ export async function handleMusicSearch(
 
   // ── 2. Download ──
   let audio: AudioFile & { debugLog: string };
-  try { audio = await downloadAudio(song.id); }
+  try { audio = await downloadAudio(song); }
   catch (e: any) {
     const errTxt = (e?.message || "unknown").slice(0, 300);
     console.error("[music] download failed:", errTxt);
