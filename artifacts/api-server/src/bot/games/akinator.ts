@@ -139,18 +139,29 @@ const GUESS_AFTER = 15;
 
 // ─── Wikipedia image fetch ────────────────────────────────────────────────────
 
+async function fetchWithTimeout(url: string, ms = 6000): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": "TelegramGameBot/1.0" },
+      signal: ctrl.signal,
+    });
+    return res;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function fetchWikiImage(wikiTitle: string): Promise<Buffer | null> {
   try {
     const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(wikiTitle)}`;
-    const res = await fetch(url, {
-      headers: { "User-Agent": "TelegramGameBot/1.0 (educational-project)" },
-      signal: AbortSignal.timeout(6000),
-    });
+    const res = await fetchWithTimeout(url);
     if (!res.ok) return null;
     const data = await res.json() as { thumbnail?: { source?: string } };
     const imgUrl = data.thumbnail?.source;
     if (!imgUrl) return null;
-    const imgRes = await fetch(imgUrl, { signal: AbortSignal.timeout(6000) });
+    const imgRes = await fetchWithTimeout(imgUrl);
     if (!imgRes.ok) return null;
     return Buffer.from(await imgRes.arrayBuffer());
   } catch {
