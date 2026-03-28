@@ -44,6 +44,9 @@ import {
   startCouch, handleCouchSetRounds, handleCouchJoin, handleCouchStart,
   handleCouchText, handleCouchChoose,
 } from "./games/couch.js";
+import {
+  startXo, handleXoJoin, handleXoMove, handleXoNoop,
+} from "./games/xo.js";
 import type { UnoCard, RpsMove } from "./state.js";
 import { generateTopCard }    from "./topCard.js";
 import { handleMusicSearch, preWarmYtDlp }  from "./music.js";
@@ -60,7 +63,8 @@ function menuMsg() {
     `⏰ <b>سلك الموت الموقوت</b>\n<i>عداد تنازلي — اضغط أقرب ما تقدر من الصفر دون أن تصله!</i>\n\n` +
     `🃏 <b>أونو</b>\n<i>تخلص من أوراقك أول — لكن قُل UNO قبل الورقة الأخيرة!</i>\n\n` +
     `🪨 <b>حجر ورقة مقص</b>\n<i>تحدي مباشر بين لاعبين — الأسرع والأذكى يفوز!</i>\n\n` +
-    `🛋️ <b>تحدي الكنبة</b>\n<i>فريقان عشوائيان — اجلس على الكنبة وزميلك يجاوب — أول فريق يكمل يفوز!</i>`
+    `🛋️ <b>تحدي الكنبة</b>\n<i>فريقان عشوائيان — اجلس على الكنبة وزميلك يجاوب — أول فريق يكمل يفوز!</i>\n\n` +
+    `✕ <b>أكس أو</b>\n<i>تحدي كلاسيكي بين اثنين — أكمل صفاً أو قطراً وتفوز!</i>`
   );
 }
 
@@ -76,6 +80,7 @@ function menuKeyboard(chatId: number) {
     [Markup.button.callback("🃏  أونو",                    `menu:uno:${chatId}`)],
     [Markup.button.callback("🪨  حجر ورقة مقص",           `menu:rps:${chatId}`)],
     [Markup.button.callback("🛋️  تحدي الكنبة",            `menu:couch:${chatId}`)],
+    [Markup.button.callback("✕  أكس أو",                  `menu:xo:${chatId}`)],
   ]);
 }
 
@@ -102,8 +107,8 @@ function extractPlayers(
 }
 
 export async function launchBot(): Promise<void> {
-  const token = process.env["TELEGRAM_BOT_TOKEN"];
-  if (!token) { logger.error("TELEGRAM_BOT_TOKEN not set"); return; }
+  const token = process.env["BOT_TOKEN"] || process.env["TELEGRAM_BOT_TOKEN"];
+  if (!token) { logger.error("BOT_TOKEN not set"); return; }
 
   // Load persisted leaderboard from disk (safe no-op if file missing)
   loadLeaderboard();
@@ -319,6 +324,12 @@ export async function launchBot(): Promise<void> {
     startCouch(bot, ctx.chat.id, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
   });
 
+  bot.command(["xo", "اكساو", "أكساو", "أكس"], (ctx) => {
+    if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
+    const f = ctx.from;
+    startXo(bot, ctx.chat.id, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
+  });
+
   bot.command("menvsmen", (ctx) => {
     if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
     const chatId = ctx.chat.id;
@@ -476,6 +487,17 @@ export async function launchBot(): Promise<void> {
         ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
         const fr = ctx.from;
         startCouch(bot, chatId, fr.id, fr.username, fr.first_name ?? "", fr.last_name ?? "");
+        return;
+      }
+
+      if (data.startsWith("menu:xo:")) {
+        const chatId = parseInt(data.slice("menu:xo:".length), 10);
+        if (isNaN(chatId)) return;
+        if (gameStates.has(chatId)) { await ctx.answerCbQuery("⚠️ في لعبة شغالة!").catch(() => {}); return; }
+        await ctx.answerCbQuery("✕○").catch(() => {});
+        ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
+        const fr = ctx.from;
+        startXo(bot, chatId, fr.id, fr.username, fr.first_name ?? "", fr.last_name ?? "");
         return;
       }
 
@@ -717,6 +739,23 @@ export async function launchBot(): Promise<void> {
         if (!isNaN(chatId) && (action === "kick" || action === "take")) {
           await handleCouchChoose(bot, ctx, chatId, action); return;
         }
+      }
+
+      // ── أكس أو ────────────────────────────────────────────────────────────────
+      if (data.startsWith("xo:join:")) {
+        const chatId = parseInt(data.slice("xo:join:".length), 10);
+        if (!isNaN(chatId)) { await handleXoJoin(bot, ctx, chatId); return; }
+      }
+      if (data.startsWith("xo:move:")) {
+        const parts  = data.split(":");
+        const idx    = parseInt(parts[2], 10);
+        const chatId = parseInt(parts[3], 10);
+        if (!isNaN(chatId) && !isNaN(idx) && idx >= 0 && idx < 9) {
+          await handleXoMove(bot, ctx, chatId, idx); return;
+        }
+      }
+      if (data.startsWith("xo:noop:")) {
+        await handleXoNoop(ctx); return;
       }
 
       await ctx.answerCbQuery().catch(() => {});
