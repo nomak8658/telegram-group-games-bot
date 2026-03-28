@@ -344,38 +344,33 @@ export interface XoState {
   turnTimeoutId?:  ReturnType<typeof setTimeout>;
 }
 
-// ─── عكس القروب ───────────────────────────────────────────────────────────────
+// ─── الزر الأخير (The Last Button) ────────────────────────────────────────────
 
-export interface ReversePlayer {
-  id: number;
-  username?: string;
-  firstName: string;
-  lastName: string;
-  points: number;
+export interface ButtonPlayer {
+  id:         number;
+  username?:  string;
+  firstName:  string;
+  lastName:   string;
+  lives:      number;
 }
 
-export interface ReverseQuestion {
-  text: string;
-  options: string[];
-}
-
-export interface ReverseState {
-  type:            "reverse";
-  phase:           "joining" | "question" | "reveal" | "done";
-  hostId:          number;
-  players:         Map<number, ReversePlayer>;
-  round:           number;
-  maxRounds:       number;
-  questions:       ReverseQuestion[];
-  answers:         Map<number, number>;      // userId → optionIndex
-  joinMsgId?:      number;
-  questionMsgId?:  number;
-  questionStart?:  number;
+export interface ButtonState {
+  type:       "button";
+  phase:      "joining" | "waiting" | "round" | "done";
+  players:    Map<number, ButtonPlayer>;
+  hostId:     number;
+  round:      number;
+  roundSeq:   number;
+  roundType?: "press" | "trap";
+  pressedAt:  Map<number, number>;  // uid → timestamp pressed
+  roundMsgId?: number;
+  joinMsgId?:  number;
+  joinTimer?:      ReturnType<typeof setTimeout>;
+  joinWarnTimer?:  ReturnType<typeof setTimeout>;
   roundTimer?:     ReturnType<typeof setTimeout>;
-  countdownTimer?: ReturnType<typeof setInterval>;
 }
 
-export type GameState = TrustBreakState | MafiaState | OutsiderState | CircleState | BombState | StopwatchState | UnoState | RpsState | CouchState | XoState | ReverseState;
+export type GameState = TrustBreakState | MafiaState | OutsiderState | CircleState | BombState | StopwatchState | UnoState | RpsState | CouchState | XoState | ButtonState;
 
 export const gameStates = new Map<number, GameState>();
 export const privateUserToGame = new Map<number, number>();
@@ -530,6 +525,10 @@ export function clearGame(chatId: number): void {
   } else if (s.type === "xo") {
     if (s.turnTimeoutId)  clearTimeout(s.turnTimeoutId);
     if (s.cancelTimeoutId) clearTimeout(s.cancelTimeoutId);
+  } else if (s.type === "button") {
+    if (s.joinTimer)     clearTimeout(s.joinTimer);
+    if (s.joinWarnTimer) clearTimeout(s.joinWarnTimer);
+    if (s.roundTimer)    clearTimeout(s.roundTimer);
   }
 
   gameStates.delete(chatId);
