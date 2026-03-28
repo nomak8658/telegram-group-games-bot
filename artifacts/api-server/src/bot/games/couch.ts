@@ -472,6 +472,10 @@ async function launchCouch(bot: Telegraf, chatId: number): Promise<void> {
   s.phase         = "playing";
   s.questionPool  = shuffle([...ALL_QUESTIONS]);
 
+  // Set target score based on team size — bigger teams need more wins
+  const teamSize = Math.max(s.teams[0].size, s.teams[1].size);
+  s.targetScore  = Math.min(3, Math.max(1, teamSize - 1));
+
   // Game start card
   const teamANames = [...s.teams[0].values()].map(p => dnC(p));
   const teamBNames = [...s.teams[1].values()].map(p => dnC(p));
@@ -483,7 +487,7 @@ async function launchCouch(bot: Telegraf, chatId: number): Promise<void> {
     `🛋️ <b>تحدي الكنبة — انطلقنا!</b>\n\n` +
     `🔵 <b>الأزرق:</b> ${teamANames.map(esc).join("، ")}\n` +
     `🔴 <b>الأحمر:</b> ${teamBNames.map(esc).join("، ")}\n\n` +
-    `🏆 أول فريق يجلسون على الكنبة معاً يفوز!`;
+    `🏆 أول فريق يسجّل <b>${s.targetScore}</b> ${s.targetScore === 1 ? "نقطة" : "نقاط"} يفوز!`;
 
   if (buf) {
     await bot.telegram.sendPhoto(chatId, { source: buf }, { caption: startCaption, parse_mode: "HTML" }).catch(() => {
