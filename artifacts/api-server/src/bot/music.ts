@@ -54,6 +54,9 @@ async function resolveYtDlp(): Promise<string> {
 }
 
 export function preWarmYtDlp(): void {
+  // Force fresh download of yt-dlp on each startup to ensure latest version
+  // (needed for tv_simply / mweb client support added in recent releases)
+  try { if (existsSync(YTDLP_FALLBACK)) { unlinkSync(YTDLP_FALLBACK); resolvedBin = null; downloadPromise = null; } } catch {}
   resolveYtDlp()
     .then(p => console.log("[music] yt-dlp ready:", p))
     .catch(e => console.error("[music] yt-dlp warm failed:", e?.message));
@@ -159,76 +162,88 @@ async function downloadAudio(
     return { buf, ext, debugLog: errors.join(" | ") };
   };
 
-  // mediaconnect + android_testsuite bypass YouTube datacenter IP auth
-  // android_vr + ios both now require PO tokens on datacenter IPs
+  // tv_simply + mweb bypass YouTube datacenter IP PO-token requirements
+  // mediaconnect/android_testsuite now require auth on most datacenter IPs
+  const TV   = ["--extractor-args", "youtube:player_client=tv_simply"];
+  const MW   = ["--extractor-args", "youtube:player_client=mweb"];
   const MC   = ["--extractor-args", "youtube:player_client=mediaconnect"];
   const TS   = ["--extractor-args", "youtube:player_client=android_testsuite"];
   const BASE = [url, "--no-warnings", "--no-playlist", "--socket-timeout", "20", "--no-part"];
 
-  // ── Strategy A: webm/opus + mediaconnect — no ffmpeg needed ──────────────────
+  // ── Strategy A: webm/opus + tv_simply — works without auth on servers ─────────
   const outWebm = path.join(tmpDir, `${stamp}_a.webm`);
   try {
     await runYtDlp(bin, [
-      ...BASE, ...MC, "-o", outWebm,
-      "-f", "251/249/bestaudio[ext=webm]",
+      ...BASE, ...TV, "-o", outWebm,
+      "-f", "251/249/bestaudio[ext=webm]", "--fixup", "never",
     ], 120_000);
     const r = await tryRead(outWebm, "webm");
     if (r) return r;
-  } catch (e: any) { errors.push(`A(webm+mc): ${e?.message?.slice(0, 120)}`); cleanUp(outWebm); }
+  } catch (e: any) { errors.push(`A(webm+tv): ${e?.message?.slice(0, 120)}`); cleanUp(outWebm); }
 
-  // ── Strategy B: m4a + android_testsuite — fixup disabled ─────────────────────
+  // ── Strategy B: m4a + mweb ────────────────────────────────────────────────────
   const outM4a = path.join(tmpDir, `${stamp}_b.m4a`);
   try {
     await runYtDlp(bin, [
-      ...BASE, ...TS, "-o", outM4a,
-      "-f", "140/139/bestaudio[ext=m4a]",
-      "--fixup", "never",
+      ...BASE, ...MW, "-o", outM4a,
+      "-f", "140/139/bestaudio[ext=m4a]", "--fixup", "never",
     ], 120_000);
     const r = await tryRead(outM4a, "m4a");
     if (r) return r;
-  } catch (e: any) { errors.push(`B(m4a+ts): ${e?.message?.slice(0, 120)}`); cleanUp(outM4a); }
+  } catch (e: any) { errors.push(`B(m4a+mw): ${e?.message?.slice(0, 120)}`); cleanUp(outM4a); }
 
-  // ── Strategy C: webm + android_testsuite fallback ─────────────────────────────
-  const outWebm2 = path.join(tmpDir, `${stamp}_c.webm`);
+  // ── Strategy C: bestaudio + tv_simply, any format ─────────────────────────────
+  const outAny = path.join(tmpDir, `${stamp}_c.%(ext)s`);
   try {
     await runYtDlp(bin, [
-      ...BASE, ...TS, "-o", outWebm2,
-      "-f", "251/249/bestaudio[ext=webm]",
-    ], 120_000);
-    const r = await tryRead(outWebm2, "webm");
-    if (r) return r;
-  } catch (e: any) { errors.push(`C(webm+ts): ${e?.message?.slice(0, 120)}`); cleanUp(outWebm2); }
-
-  // ── Strategy D: mp3 via ffmpeg + mediaconnect (if ffmpeg available) ───────────
-  if (ffDir) {
-    const out = path.join(tmpDir, `${stamp}_d.mp3`);
-    try {
-      await runYtDlp(bin, [
-        ...BASE, ...MC, "-o", out,
-        "-x", "--audio-format", "mp3", "--audio-quality", "5",
-        "--ffmpeg-location", ffDir,
-      ], 120_000);
-      const r = await tryRead(out, "mp3");
-      if (r) return r;
-    } catch (e: any) { errors.push(`D(mp3+mc): ${e?.message?.slice(0, 120)}`); cleanUp(out); }
-  }
-
-  // ── Strategy E: bestaudio + mediaconnect, any format ─────────────────────────
-  const outAny = path.join(tmpDir, `${stamp}_e.%(ext)s`);
-  try {
-    await runYtDlp(bin, [
-      ...BASE, ...MC, "-o", outAny,
+      ...BASE, ...TV, "-o", outAny,
       "-f", "bestaudio", "--fixup", "never",
     ], 120_000);
-    const prefix = `${stamp}_e.`;
+    const prefix = `${stamp}_c.`;
     const found  = readdirSync(tmpDir).find(f => f.startsWith(prefix));
     if (found) {
       const fp = path.join(tmpDir, found);
       const buf = await readFile(fp); cleanUp(fp);
       return { buf, ext: path.extname(found).slice(1) || "audio", debugLog: errors.join(" | ") };
     }
-    errors.push("E(bestaudio+mc): exit 0 but no file");
-  } catch (e: any) { errors.push(`E(bestaudio+mc): ${e?.message?.slice(0, 120)}`); }
+    errors.push("C(best+tv): exit 0 but no file");
+  } catch (e: any) { errors.push(`C(best+tv): ${e?.message?.slice(0, 120)}`); }
+
+  // ── Strategy D: webm + mediaconnect fallback ──────────────────────────────────
+  const outWebm2 = path.join(tmpDir, `${stamp}_d.webm`);
+  try {
+    await runYtDlp(bin, [
+      ...BASE, ...MC, "-o", outWebm2,
+      "-f", "251/249/bestaudio[ext=webm]", "--fixup", "never",
+    ], 120_000);
+    const r = await tryRead(outWebm2, "webm");
+    if (r) return r;
+  } catch (e: any) { errors.push(`D(webm+mc): ${e?.message?.slice(0, 120)}`); cleanUp(outWebm2); }
+
+  // ── Strategy E: m4a + android_testsuite last resort ──────────────────────────
+  const outM4a2 = path.join(tmpDir, `${stamp}_e.m4a`);
+  try {
+    await runYtDlp(bin, [
+      ...BASE, ...TS, "-o", outM4a2,
+      "-f", "140/139/bestaudio[ext=m4a]", "--fixup", "never",
+    ], 120_000);
+    const r = await tryRead(outM4a2, "m4a");
+    if (r) return r;
+  } catch (e: any) { errors.push(`E(m4a+ts): ${e?.message?.slice(0, 120)}`); cleanUp(outM4a2); }
+
+  // ── Strategy F: mp3 via ffmpeg + tv_simply (if ffmpeg available) ──────────────
+  if (ffDir) {
+    const out = path.join(tmpDir, `${stamp}_f.mp3`);
+    try {
+      await runYtDlp(bin, [
+        ...BASE, ...TV, "-o", out,
+        "-x", "--audio-format", "mp3", "--audio-quality", "5",
+        "--ffmpeg-location", ffDir,
+      ], 120_000);
+      const r = await tryRead(out, "mp3");
+      if (r) return r;
+    } catch (e: any) { errors.push(`F(mp3+tv): ${e?.message?.slice(0, 120)}`); cleanUp(out); }
+  }
 
   throw new Error(errors.join(" || "));
 }
