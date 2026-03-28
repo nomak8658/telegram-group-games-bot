@@ -339,7 +339,34 @@ export interface CouchState {
   timerHandle?: ReturnType<typeof setTimeout>;
 }
 
-export type GameState = MenVsMenState | TrustBreakState | MafiaState | OutsiderState | CircleState | BombState | StopwatchState | UnoState | RpsState | CouchState;
+// ─── XO (Tic-Tac-Toe) ─────────────────────────────────────────────────────────
+
+export interface XoPlayer {
+  id: number;
+  username?: string;
+  firstName: string;
+  lastName: string;
+}
+
+export type XoCell = "X" | "O" | null;
+export type XoBoard = [XoCell, XoCell, XoCell, XoCell, XoCell, XoCell, XoCell, XoCell, XoCell];
+
+export interface XoState {
+  type:            "xo";
+  phase:           "waiting" | "playing" | "done";
+  chatId:          number;
+  hostPlayer:      XoPlayer;
+  guestPlayer:     XoPlayer | null;
+  board:           XoBoard;
+  currentTurn:     "host" | "guest";
+  hostSymbol:      "X" | "O";
+  guestSymbol:     "X" | "O";
+  mainMsgId:       number | null;
+  cancelTimeoutId?: ReturnType<typeof setTimeout>;
+  turnTimeoutId?:  ReturnType<typeof setTimeout>;
+}
+
+export type GameState = MenVsMenState | TrustBreakState | MafiaState | OutsiderState | CircleState | BombState | StopwatchState | UnoState | RpsState | CouchState | XoState;
 
 export const gameStates = new Map<number, GameState>();
 export const privateUserToGame = new Map<number, number>();
@@ -494,6 +521,9 @@ export function clearGame(chatId: number): void {
     if (s.cancelTimeoutId) clearTimeout(s.cancelTimeoutId);
   } else if (s.type === "couch") {
     if (s.timerHandle) clearTimeout(s.timerHandle);
+  } else if (s.type === "xo") {
+    if (s.turnTimeoutId)  clearTimeout(s.turnTimeoutId);
+    if (s.cancelTimeoutId) clearTimeout(s.cancelTimeoutId);
   }
 
   gameStates.delete(chatId);
