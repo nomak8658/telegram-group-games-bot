@@ -22,9 +22,6 @@ async function ensureFonts() {
   fontsLoaded = true;
 }
 
-const W = 900;
-const H = 520;
-
 const X_COLOR  = "#00C8FF";
 const O_COLOR  = "#FF6535";
 const GOLD     = "#FFD700";
@@ -63,7 +60,7 @@ function drawDiagonalLines(ctx: CanvasRenderingContext2D, x: number, y: number, 
   ctx.restore();
 }
 
-function hLine(ctx: CanvasRenderingContext2D, y: number, color: string, alpha = 0.7) {
+function hLineW(ctx: CanvasRenderingContext2D, W: number, y: number, color: string, alpha = 0.7) {
   const g = ctx.createLinearGradient(0, 0, W, 0);
   g.addColorStop(0,   "rgba(0,0,0,0)");
   g.addColorStop(0.5, color.replace(")", `,${alpha})`).replace("rgb", "rgba"));
@@ -72,7 +69,7 @@ function hLine(ctx: CanvasRenderingContext2D, y: number, color: string, alpha = 
   ctx.fillRect(0, y, W, 1.5);
 }
 
-function drawBg(ctx: CanvasRenderingContext2D) {
+function drawBg(ctx: CanvasRenderingContext2D, W: number, H: number) {
   const bg = ctx.createLinearGradient(0, 0, W, H);
   bg.addColorStop(0,   BG1);
   bg.addColorStop(0.5, BG2);
@@ -82,7 +79,7 @@ function drawBg(ctx: CanvasRenderingContext2D) {
   drawDiagonalLines(ctx, 0, 0, W, H, "rgba(0,200,255,0.03)");
 }
 
-function drawEdgeLines(ctx: CanvasRenderingContext2D, color = CYAN) {
+function drawEdgeLines(ctx: CanvasRenderingContext2D, W: number, H: number, color = CYAN) {
   const g = ctx.createLinearGradient(0, 0, W, 0);
   g.addColorStop(0,   "rgba(0,0,0,0)");
   g.addColorStop(0.5, color);
@@ -156,19 +153,18 @@ function drawGrid(
   const total = cellSize * 3 + gap * 2;
 
   ctx.save();
-  ctx.strokeStyle = "rgba(0, 210, 255, 0.35)";
-  ctx.lineWidth = 3;
-  ctx.lineCap = "round";
 
   for (let i = 1; i < 3; i++) {
     const x = gx + i * (cellSize + gap) - gap / 2;
-    const y1 = gy + 14;
-    const y2 = gy + total - 14;
+    const y1 = gy + 18;
+    const y2 = gy + total - 18;
     const lg = ctx.createLinearGradient(0, y1, 0, y2);
     lg.addColorStop(0,   "rgba(0,210,255,0)");
-    lg.addColorStop(0.5, "rgba(0,210,255,0.5)");
+    lg.addColorStop(0.5, "rgba(0,210,255,0.55)");
     lg.addColorStop(1,   "rgba(0,210,255,0)");
     ctx.strokeStyle = lg as unknown as string;
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
     ctx.beginPath();
     ctx.moveTo(x, y1);
     ctx.lineTo(x, y2);
@@ -177,13 +173,15 @@ function drawGrid(
 
   for (let i = 1; i < 3; i++) {
     const y = gy + i * (cellSize + gap) - gap / 2;
-    const x1 = gx + 14;
-    const x2 = gx + total - 14;
+    const x1 = gx + 18;
+    const x2 = gx + total - 18;
     const lg = ctx.createLinearGradient(x1, 0, x2, 0);
     lg.addColorStop(0,   "rgba(0,210,255,0)");
-    lg.addColorStop(0.5, "rgba(0,210,255,0.5)");
+    lg.addColorStop(0.5, "rgba(0,210,255,0.55)");
     lg.addColorStop(1,   "rgba(0,210,255,0)");
     ctx.strokeStyle = lg as unknown as string;
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
     ctx.beginPath();
     ctx.moveTo(x1, y);
     ctx.lineTo(x2, y);
@@ -199,8 +197,8 @@ function drawGrid(
     const isWinCell = winLine?.includes(i);
     const cellAlpha = !winLine || isWinCell ? 1 : 0.35;
 
-    if (board[i] === "X") drawX(ctx, cx, cy, cellSize * 0.75, X_COLOR, cellAlpha);
-    if (board[i] === "O") drawO(ctx, cx, cy, cellSize * 0.75, O_COLOR, cellAlpha);
+    if (board[i] === "X") drawX(ctx, cx, cy, cellSize * 0.72, X_COLOR, cellAlpha);
+    if (board[i] === "O") drawO(ctx, cx, cy, cellSize * 0.72, O_COLOR, cellAlpha);
   }
 
   if (winLine) {
@@ -219,10 +217,10 @@ function drawGrid(
 
     ctx.save();
     ctx.strokeStyle = winColor;
-    ctx.lineWidth = 6;
+    ctx.lineWidth = 7;
     ctx.lineCap = "round";
     ctx.shadowColor = winColor;
-    ctx.shadowBlur = 22;
+    ctx.shadowBlur = 28;
     ctx.globalAlpha = 0.9;
     ctx.beginPath();
     ctx.moveTo(pa.x, pa.y);
@@ -234,12 +232,6 @@ function drawGrid(
   ctx.restore();
 }
 
-const CELL = 108;
-const GAP  = 14;
-const GRID_W = CELL * 3 + GAP * 2;
-const GRID_X = (W - GRID_W) / 2;
-const GRID_Y = 120;
-
 export async function generateXoBoardCard(
   hostName: string,
   guestName: string,
@@ -250,26 +242,35 @@ export async function generateXoBoardCard(
 ): Promise<Buffer> {
   await ensureFonts();
   const cv = await getCanvas();
+
+  const W = 800;
+  const H = 800;
+  const CELL = 195;
+  const GAP  = 22;
+  const GRID_W = CELL * 3 + GAP * 2;
+  const GRID_X = (W - GRID_W) / 2;
+  const GRID_Y = 118;
+
   const canvas = cv.createCanvas(W, H);
   const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D;
 
-  drawBg(ctx);
+  drawBg(ctx, W, H);
 
   const guestSymbol = hostSymbol === "X" ? "O" : "X";
 
   const le = ctx.createLinearGradient(0, 0, 180, 0);
-  le.addColorStop(0, hostSymbol === "X" ? "rgba(0,200,255,0.20)" : "rgba(255,100,53,0.20)");
+  le.addColorStop(0, hostSymbol === "X" ? "rgba(0,200,255,0.22)" : "rgba(255,100,53,0.22)");
   le.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = le;
   ctx.fillRect(0, 0, 180, H);
 
   const re = ctx.createLinearGradient(W, 0, W - 180, 0);
-  re.addColorStop(0, guestSymbol === "X" ? "rgba(0,200,255,0.20)" : "rgba(255,100,53,0.20)");
+  re.addColorStop(0, guestSymbol === "X" ? "rgba(0,200,255,0.22)" : "rgba(255,100,53,0.22)");
   re.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = re;
   ctx.fillRect(W - 180, 0, 180, H);
 
-  drawEdgeLines(ctx, CYAN);
+  drawEdgeLines(ctx, W, H, CYAN);
 
   const hostCol  = hostSymbol  === "X" ? X_COLOR : O_COLOR;
   const guestCol = guestSymbol === "X" ? X_COLOR : O_COLOR;
@@ -278,45 +279,37 @@ export async function generateXoBoardCard(
   const gActive  = turn === "guest";
 
   ctx.save();
-  ctx.font = "bold 22px CairoBold";
+  ctx.font = "bold 26px CairoBold";
   ctx.textAlign = "center";
   ctx.fillStyle = hostCol + (hActive ? "" : "88");
   ctx.shadowColor = hostCol;
-  ctx.shadowBlur = hActive ? 18 : 0;
-  ctx.fillText(`${hostSymbol}  ${limitName(hostName)}`, 120, 72);
+  ctx.shadowBlur = hActive ? 20 : 0;
+  ctx.fillText(`${hostSymbol}  ${limitName(hostName)}`, 130, 76);
   ctx.restore();
 
   ctx.save();
-  ctx.font = "bold 22px CairoBold";
+  ctx.font = "bold 26px CairoBold";
   ctx.textAlign = "center";
   ctx.fillStyle = guestCol + (gActive ? "" : "88");
   ctx.shadowColor = guestCol;
-  ctx.shadowBlur = gActive ? 18 : 0;
-  ctx.fillText(`${limitName(guestName)}  ${guestSymbol}`, W - 120, 72);
+  ctx.shadowBlur = gActive ? 20 : 0;
+  ctx.fillText(`${limitName(guestName)}  ${guestSymbol}`, W - 130, 76);
   ctx.restore();
 
   if (turn !== null) {
     const activeName  = turn === "host" ? limitName(hostName) : limitName(guestName);
     const activeCol   = turn === "host" ? hostCol : guestCol;
     ctx.save();
-    ctx.font = "18px Cairo";
+    ctx.font = "22px Cairo";
     ctx.textAlign = "center";
-    ctx.fillStyle = activeCol + "AA";
-    ctx.fillText(`دور ${activeName}`, W / 2, 76);
+    ctx.fillStyle = activeCol + "BB";
+    ctx.fillText(`دور ${activeName}`, W / 2, 82);
     ctx.restore();
   }
 
-  hLine(ctx, 94, CYAN, 0.3);
+  hLineW(ctx, W, 100, CYAN, 0.3);
 
   drawGrid(ctx, GRID_X, GRID_Y, CELL, GAP, board, winLine);
-
-  const footerY = GRID_Y + CELL * 3 + GAP * 2 + 38;
-  ctx.save();
-  ctx.font = "bold 20px CairoBold";
-  ctx.textAlign = "center";
-  ctx.fillStyle = "rgba(0,212,255,0.45)";
-  ctx.fillText("أكس أو  ✕  ○", W / 2, footerY);
-  ctx.restore();
 
   return canvas.toBuffer("image/png") as unknown as Buffer;
 }
@@ -330,57 +323,66 @@ export async function generateXoWinnerCard(
 ): Promise<Buffer> {
   await ensureFonts();
   const cv = await getCanvas();
+
+  const W = 800;
+  const H = 800;
+  const CELL = 160;
+  const GAP  = 20;
+  const GRID_W = CELL * 3 + GAP * 2;
+  const GRID_X = (W - GRID_W) / 2;
+  const GRID_Y = 230;
+
   const canvas = cv.createCanvas(W, H);
   const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D;
 
-  drawBg(ctx);
+  drawBg(ctx, W, H);
 
   const wCol = winnerSymbol === "X" ? X_COLOR : O_COLOR;
   const loserSymbol: "X" | "O" = winnerSymbol === "X" ? "O" : "X";
 
-  const winGlow = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, 360);
+  const winGlow = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, 400);
   winGlow.addColorStop(0, wCol + "22");
   winGlow.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = winGlow;
   ctx.fillRect(0, 0, W, H);
 
-  drawEdgeLines(ctx, wCol);
+  drawEdgeLines(ctx, W, H, wCol);
   drawDiagonalLines(ctx, 0, 0, W, H, wCol + "08");
 
   ctx.save();
-  ctx.font = "bold 52px CairoBold";
+  ctx.font = "bold 58px CairoBold";
   ctx.textAlign = "center";
   ctx.fillStyle = GOLD;
   ctx.shadowColor = GOLD;
-  ctx.shadowBlur = 35;
-  ctx.fillText("🏆 الفائز!", W / 2, 68);
+  ctx.shadowBlur = 38;
+  ctx.fillText("🏆 الفائز!", W / 2, 76);
   ctx.shadowBlur = 0;
   ctx.restore();
 
-  hLine(ctx, 82, wCol, 0.5);
+  hLineW(ctx, W, 94, wCol, 0.5);
 
   ctx.save();
   const nLen = limitName(winnerName, 16).length;
-  const nfs  = nLen > 12 ? 44 : nLen > 8 ? 52 : 60;
+  const nfs  = nLen > 12 ? 46 : nLen > 8 ? 56 : 66;
   ctx.font = `bold ${nfs}px CairoBold`;
   ctx.textAlign = "center";
   ctx.fillStyle = "#FFFFFF";
   ctx.shadowColor = wCol;
-  ctx.shadowBlur = 40;
-  ctx.fillText(`${winnerSymbol}  ${limitName(winnerName, 16)}`, W / 2, 148);
+  ctx.shadowBlur = 44;
+  ctx.fillText(`${winnerSymbol}  ${limitName(winnerName, 16)}`, W / 2, 162);
   ctx.shadowBlur = 0;
   ctx.restore();
 
   ctx.save();
-  ctx.font = "18px Cairo";
+  ctx.font = "20px Cairo";
   ctx.textAlign = "center";
-  ctx.fillStyle = "rgba(255,255,255,0.38)";
-  ctx.fillText(`ضد  ${limitName(loserName, 16)}  ${loserSymbol}`, W / 2, 182);
+  ctx.fillStyle = "rgba(255,255,255,0.40)";
+  ctx.fillText(`ضد  ${limitName(loserName, 16)}  ${loserSymbol}`, W / 2, 202);
   ctx.restore();
 
-  hLine(ctx, 198, wCol, 0.3);
+  hLineW(ctx, W, 218, wCol, 0.3);
 
-  drawGrid(ctx, GRID_X, GRID_Y + 88, CELL, GAP, board, winLine);
+  drawGrid(ctx, GRID_X, GRID_Y, CELL, GAP, board, winLine);
 
   return canvas.toBuffer("image/png") as unknown as Buffer;
 }
@@ -392,32 +394,43 @@ export async function generateXoDrawCard(
 ): Promise<Buffer> {
   await ensureFonts();
   const cv = await getCanvas();
+
+  const W = 800;
+  const H = 800;
+  const CELL = 170;
+  const GAP  = 20;
+  const GRID_W = CELL * 3 + GAP * 2;
+  const GRID_X = (W - GRID_W) / 2;
+  const GRID_Y = 186;
+
   const canvas = cv.createCanvas(W, H);
   const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D;
 
-  drawBg(ctx);
-  drawEdgeLines(ctx, CYAN);
+  drawBg(ctx, W, H);
+  drawEdgeLines(ctx, W, H, CYAN);
 
   ctx.save();
-  ctx.font = "bold 50px CairoBold";
+  ctx.font = "bold 56px CairoBold";
   ctx.textAlign = "center";
   ctx.fillStyle = CYAN;
   ctx.shadowColor = CYAN;
-  ctx.shadowBlur = 28;
-  ctx.fillText("🤝 تعادل!", W / 2, 66);
+  ctx.shadowBlur = 30;
+  ctx.fillText("🤝 تعادل!", W / 2, 74);
   ctx.shadowBlur = 0;
   ctx.restore();
 
-  hLine(ctx, 82, CYAN, 0.4);
+  hLineW(ctx, W, 92, CYAN, 0.4);
 
   ctx.save();
-  ctx.font = "22px Cairo";
+  ctx.font = "24px Cairo";
   ctx.textAlign = "center";
   ctx.fillStyle = "rgba(255,255,255,0.55)";
-  ctx.fillText(`${limitName(hostName)}  ×  ${limitName(guestName)}`, W / 2, 116);
+  ctx.fillText(`${limitName(hostName)}  ×  ${limitName(guestName)}`, W / 2, 136);
   ctx.restore();
 
-  drawGrid(ctx, GRID_X, GRID_Y + 24, CELL, GAP, board, null);
+  hLineW(ctx, W, 156, CYAN, 0.2);
+
+  drawGrid(ctx, GRID_X, GRID_Y, CELL, GAP, board, null);
 
   return canvas.toBuffer("image/png") as unknown as Buffer;
 }
@@ -425,10 +438,14 @@ export async function generateXoDrawCard(
 export async function generateXoChallengeCard(hostName: string): Promise<Buffer> {
   await ensureFonts();
   const cv = await getCanvas();
+
+  const W = 900;
+  const H = 520;
+
   const canvas = cv.createCanvas(W, H);
   const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D;
 
-  drawBg(ctx);
+  drawBg(ctx, W, H);
 
   const le = ctx.createLinearGradient(0, 0, 200, 0);
   le.addColorStop(0, "rgba(0,200,255,0.18)");
@@ -443,7 +460,7 @@ export async function generateXoChallengeCard(hostName: string): Promise<Buffer>
   drawX(ctx, 120, H / 2, 90, X_COLOR, 0.18);
   drawO(ctx, W - 120, H / 2, 90, O_COLOR, 0.18);
 
-  drawEdgeLines(ctx, CYAN);
+  drawEdgeLines(ctx, W, H, CYAN);
 
   ctx.save();
   const tg = ctx.createLinearGradient(200, 0, 700, 0);
@@ -458,7 +475,7 @@ export async function generateXoChallengeCard(hostName: string): Promise<Buffer>
   ctx.shadowBlur = 0;
   ctx.restore();
 
-  hLine(ctx, 128, CYAN, 0.4);
+  hLineW(ctx, W, 128, CYAN, 0.4);
 
   ctx.font = "20px Cairo";
   ctx.fillStyle = "rgba(0,212,255,0.6)";
@@ -482,7 +499,7 @@ export async function generateXoChallengeCard(hostName: string): Promise<Buffer>
   ctx.textAlign = "center";
   ctx.fillText("يتحدى القروب  —  من يجرؤ؟", W / 2, 330);
 
-  hLine(ctx, 360, CYAN, 0.25);
+  hLineW(ctx, W, 360, CYAN, 0.25);
 
   ctx.save();
   ctx.fillStyle = "rgba(0,212,255,0.08)";
