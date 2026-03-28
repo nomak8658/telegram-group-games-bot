@@ -576,6 +576,14 @@ export async function launchBot(): Promise<void> {
         const chatId = parseInt(data.slice("aki:dk:".length), 10);
         if (!isNaN(chatId)) { await handleAkinatorAnswer(bot, ctx, chatId, "dk"); return; }
       }
+      if (data.startsWith("aki:maybe:")) {
+        const chatId = parseInt(data.slice("aki:maybe:".length), 10);
+        if (!isNaN(chatId)) { await handleAkinatorAnswer(bot, ctx, chatId, "maybe"); return; }
+      }
+      if (data.startsWith("aki:probno:")) {
+        const chatId = parseInt(data.slice("aki:probno:".length), 10);
+        if (!isNaN(chatId)) { await handleAkinatorAnswer(bot, ctx, chatId, "probno"); return; }
+      }
       if (data.startsWith("aki:correct:")) {
         const chatId = parseInt(data.slice("aki:correct:".length), 10);
         if (!isNaN(chatId)) { await handleAkinatorCorrect(bot, ctx, chatId); return; }
