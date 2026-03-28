@@ -37,8 +37,11 @@ function buildPlayerList(s: StopwatchState): string {
 }
 
 const GAME_DURATION_MS = 20_000;
-const UPDATE_MS        = 800;    // edit every 0.8s — feels precise, within Telegram limits
+const UPDATE_MS        = 2_000;  // 2s — safe below Telegram rate limits
 const MIN_PLAYERS      = 2;
+
+// Guard: prevents concurrent edits per chat (avoid 429 floods)
+const editBusy = new Map<number, boolean>();
 
 // ─── Build combined message ───────────────────────────────────────────────────
 
@@ -237,19 +240,22 @@ async function launchStopwatch(bot: Telegraf, chatId: number): Promise<void> {
 
   if (msg) s.mainMsgId = msg.message_id;
 
-  // Interval — edits the single main message
+  // Interval — edits the single main message (guard prevents 429 floods)
   s.countdownInterval = setInterval(async () => {
+    if (editBusy.get(chatId)) return;
     const st = gameStates.get(chatId);
     if (!st || st.type !== "stopwatch" || st.phase !== "countdown" || !st.mainMsgId) return;
     const el  = Date.now() - st.startTime;
     const rem = Math.max(0, st.durationMs - el);
-    const { text, keyboard } = buildMainMsg(st, rem, true);
+    const { text } = buildMainMsg(st, rem, true);
+    editBusy.set(chatId, true);
     await bot.telegram.editMessageText(chatId, st.mainMsgId, undefined, text, {
       parse_mode: "HTML",
       ...Markup.inlineKeyboard([[
         Markup.button.callback("💥  أوقف القنبلة!", `sw:press:${chatId}`),
       ]]),
     }).catch(() => {});
+    editBusy.delete(chatId);
   }, UPDATE_MS);
 
   s.bombTimer = setTimeout(() => explodeAll(bot, chatId), GAME_DURATION_MS);
@@ -288,6 +294,7 @@ async function endStopwatch(bot: Telegraf, chatId: number): Promise<void> {
   s.phase = "done";
   if (s.countdownInterval) { clearInterval(s.countdownInterval); s.countdownInterval = undefined; }
   if (s.bombTimer)          { clearTimeout(s.bombTimer);          s.bombTimer = undefined; }
+  editBusy.delete(chatId);
 
   // Final state — hide button
   if (s.mainMsgId) {
