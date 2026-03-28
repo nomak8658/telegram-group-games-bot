@@ -121,7 +121,8 @@ async function findSong(query: string): Promise<SongInfo | null> {
     "--no-warnings",
     "--no-playlist",
     "--socket-timeout", "10",
-  ], 25_000).catch(e => { console.error("[music:search]", e?.message); return { stdout: "", stderr: "" }; });
+    "--extractor-args", "youtube:player_client=tv_simply",
+  ], 30_000).catch(e => { console.error("[music:search]", e?.message); return { stdout: "", stderr: "" }; });
 
   // Each video produces 4 lines: id, title, duration, uploader
   const lines = stdout.trim().split("\n").filter(Boolean);
