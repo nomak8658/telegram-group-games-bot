@@ -47,8 +47,8 @@ import {
   startXo, handleXoJoin, handleXoMove, handleXoNoop,
 } from "./games/xo.js";
 import {
-  startReverse, handleReverseJoin, handleReverseForceStart, handleReversePick,
-} from "./games/reverse.js";
+  startButton, handleButtonJoin, handleButtonStart, handleButtonPress,
+} from "./games/button.js";
 
 import type { UnoCard, RpsMove } from "./state.js";
 import { generateTopCard }    from "./topCard.js";
@@ -67,7 +67,7 @@ function menuMsg() {
     `🪨 <b>حجر ورقة مقص</b>\n<i>تحدي مباشر بين لاعبين — الأسرع والأذكى يفوز!</i>\n\n` +
     `🛋️ <b>تحدي الكنبة</b>\n<i>فريقان عشوائيان — اجلس على الكنبة وزميلك يجاوب — أول فريق يكمل يفوز!</i>\n\n` +
     `✕ <b>أكس أو</b>\n<i>تحدي كلاسيكي بين اثنين — أكمل صفاً أو قطراً وتفوز!</i>\n\n` +
-    `🔄 <b>عكس القروب</b>\n<i>اختار عكس الأغلبية — من يخالف الجميع يفوز!</i>`
+    `⚡ <b>الزر الأخير</b>\n<i>آخر واحد يضغط الزر يخسر — وأحياناً البوت يخدعكم 😈</i>`
   );
 }
 
@@ -83,7 +83,7 @@ function menuKeyboard(chatId: number) {
     [Markup.button.callback("🪨  حجر ورقة مقص",           `menu:rps:${chatId}`)],
     [Markup.button.callback("🛋️  تحدي الكنبة",            `menu:couch:${chatId}`)],
     [Markup.button.callback("✕  أكس أو",                  `menu:xo:${chatId}`)],
-    [Markup.button.callback("🔄  عكس القروب",             `menu:reverse:${chatId}`)],
+    [Markup.button.callback("⚡  الزر الأخير",             `menu:btn:${chatId}`)],
   ]);
 }
 
@@ -341,10 +341,10 @@ export async function launchBot(): Promise<void> {
     startXo(bot, ctx.chat.id, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
   });
 
-  bot.command(["reverse", "عكس", "عكسي"], (ctx) => {
+  bot.command(["button", "الزر", "زر"], (ctx) => {
     if (ctx.chat.type === "private") { ctx.reply("🚫 للقروبات فقط!").catch(() => {}); return; }
     const f = ctx.from;
-    startReverse(bot, ctx.chat.id, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
+    startButton(bot, ctx.chat.id, f.id, f.username, f.first_name ?? "", f.last_name ?? "");
   });
 
 
@@ -512,14 +512,14 @@ export async function launchBot(): Promise<void> {
         return;
       }
 
-      if (data.startsWith("menu:reverse:")) {
-        const chatId = parseInt(data.slice("menu:reverse:".length), 10);
+      if (data.startsWith("menu:btn:")) {
+        const chatId = parseInt(data.slice("menu:btn:".length), 10);
         if (isNaN(chatId)) return;
         if (gameStates.has(chatId)) { await ctx.answerCbQuery("⚠️ في لعبة شغالة!").catch(() => {}); return; }
-        await ctx.answerCbQuery("🔄 عكس القروب!").catch(() => {});
+        await ctx.answerCbQuery("⚡ الزر الأخير!").catch(() => {});
         ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
         const fr = ctx.from;
-        startReverse(bot, chatId, fr.id, fr.username, fr.first_name ?? "", fr.last_name ?? "");
+        startButton(bot, chatId, fr.id, fr.username, fr.first_name ?? "", fr.last_name ?? "");
         return;
       }
 
@@ -766,20 +766,20 @@ export async function launchBot(): Promise<void> {
         await handleXoNoop(ctx); return;
       }
 
-      // ── عكس القروب ─────────────────────────────────────────────────────────────
-      if (data.startsWith("rev:join:")) {
-        const chatId = parseInt(data.slice("rev:join:".length), 10);
-        if (!isNaN(chatId)) { await handleReverseJoin(bot, ctx, chatId); return; }
+      // ── الزر الأخير ────────────────────────────────────────────────────────────
+      if (data.startsWith("btn:join:")) {
+        const chatId = parseInt(data.slice("btn:join:".length), 10);
+        if (!isNaN(chatId)) { await handleButtonJoin(bot, ctx, chatId); return; }
       }
-      if (data.startsWith("rev:start:")) {
-        const chatId = parseInt(data.slice("rev:start:".length), 10);
-        if (!isNaN(chatId)) { await handleReverseForceStart(bot, ctx, chatId); return; }
+      if (data.startsWith("btn:start:")) {
+        const chatId = parseInt(data.slice("btn:start:".length), 10);
+        if (!isNaN(chatId)) { await handleButtonStart(bot, ctx, chatId); return; }
       }
-      if (data.startsWith("rev:pick:")) {
+      if (data.startsWith("btn:press:")) {
         const parts  = data.split(":");
         const chatId = parseInt(parts[2], 10);
-        const optIdx = parseInt(parts[3], 10);
-        if (!isNaN(chatId) && !isNaN(optIdx)) { await handleReversePick(bot, ctx, chatId, optIdx); return; }
+        const seq    = parseInt(parts[3], 10);
+        if (!isNaN(chatId) && !isNaN(seq)) { await handleButtonPress(bot, ctx, chatId, seq); return; }
       }
 
       await ctx.answerCbQuery().catch(() => {});
