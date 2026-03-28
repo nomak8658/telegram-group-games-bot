@@ -798,7 +798,7 @@ export async function launchBot(): Promise<void> {
 
   // ─── Text messages ───────────────────────────────────────────────────────────
 
-  bot.on(message("text"), (ctx) => {
+  bot.on(message("text"), async (ctx) => {
     const uid = ctx.from.id;
     const uname = ctx.from.username;
     const text = ctx.message.text ?? "";
@@ -854,12 +854,36 @@ export async function launchBot(): Promise<void> {
       return;
     }
 
+    // ── تفعيل/تعطيل الموسيقى بنص عادي ─────────────────────────────────────────
+    if (/^تعطيل\s*[أا]غاني$/u.test(trimmed)) {
+      if (ctx.chat.type !== "private") {
+        if (await isAdmin(chatId, uid)) {
+          musicDisabledChats.add(chatId);
+          ctx.reply("🔇 تم تعطيل الموسيقى في هذا القروب ❌").catch(() => {});
+        } else {
+          ctx.reply("🚫 هذا الأمر للأدمنز فقط.").catch(() => {});
+        }
+      }
+      return;
+    }
+    if (/^تفعيل\s*[أا]غاني$/u.test(trimmed)) {
+      if (ctx.chat.type !== "private") {
+        if (await isAdmin(chatId, uid)) {
+          musicDisabledChats.delete(chatId);
+          ctx.reply("🎵 تم تفعيل الموسيقى في هذا القروب ✅").catch(() => {});
+        } else {
+          ctx.reply("🚫 هذا الأمر للأدمنز فقط.").catch(() => {});
+        }
+      }
+      return;
+    }
+
     // ── يوت / بحث — YouTube music search ────────────────────────────────────────
     {
       const musicMatch = /^(يوت(?:يوب)?|بحث)(\s+(.+))?$/u.exec(trimmed);
       if (musicMatch) {
         if (musicDisabledChats.has(chatId)) {
-          ctx.reply("🔇 الموسيقى معطّلة في هذا القروب.\nالأدمن يقدر يفعّلها بـ /music_on").catch(() => {});
+          ctx.reply("🔇 الموسيقى معطّلة في هذا القروب.").catch(() => {});
           return;
         }
         const q = (musicMatch[3] ?? "").trim();
