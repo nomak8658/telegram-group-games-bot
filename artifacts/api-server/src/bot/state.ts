@@ -369,17 +369,16 @@ export interface XoState {
 // ─── Akinator ──────────────────────────────────────────────────────────────────
 
 export interface AkinatorState {
-  type:          "akinator";
-  chatId:        number;
-  userId:        number;
-  msgId:         number | null;
-  step:          number;
-  scores:        Record<string, number>;
-  askedKeys:     string[];
-  currentKey:    string | null;
-  phase:         "playing" | "guessing";
-  guessAttempts: number;
-  triedChars:    string[];
+  type:            "akinator";
+  chatId:          number;
+  userId:          number;
+  msgId:           number | null;
+  step:            number;
+  history:         Array<{ question: string; answer: string }>;
+  currentQuestion: string | null;
+  phase:           "playing" | "guessing";
+  guessAttempts:   number;
+  triedChars:      string[];
 }
 
 export type GameState = MenVsMenState | TrustBreakState | MafiaState | OutsiderState | CircleState | BombState | StopwatchState | UnoState | RpsState | CouchState | XoState | AkinatorState;
