@@ -882,10 +882,7 @@ export async function launchBot(): Promise<void> {
     {
       const musicMatch = /^(يوت(?:يوب)?|بحث)(\s+(.+))?$/u.exec(trimmed);
       if (musicMatch) {
-        if (musicDisabledChats.has(chatId)) {
-          ctx.reply("🔇 الموسيقى معطّلة في هذا القروب.").catch(() => {});
-          return;
-        }
+        if (musicDisabledChats.has(chatId)) return;
         const q = (musicMatch[3] ?? "").trim();
         if (q.length > 0) {
           void handleMusicSearch(bot, chatId, q, ctx.message.message_id);
