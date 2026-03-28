@@ -366,7 +366,38 @@ export interface XoState {
   turnTimeoutId?:  ReturnType<typeof setTimeout>;
 }
 
-export type GameState = MenVsMenState | TrustBreakState | MafiaState | OutsiderState | CircleState | BombState | StopwatchState | UnoState | RpsState | CouchState | XoState;
+// ─── عكس القروب ───────────────────────────────────────────────────────────────
+
+export interface ReversePlayer {
+  id: number;
+  username?: string;
+  firstName: string;
+  lastName: string;
+  points: number;
+}
+
+export interface ReverseQuestion {
+  text: string;
+  options: string[];
+}
+
+export interface ReverseState {
+  type:            "reverse";
+  phase:           "joining" | "question" | "reveal" | "done";
+  hostId:          number;
+  players:         Map<number, ReversePlayer>;
+  round:           number;
+  maxRounds:       number;
+  questions:       ReverseQuestion[];
+  answers:         Map<number, number>;      // userId → optionIndex
+  joinMsgId?:      number;
+  questionMsgId?:  number;
+  questionStart?:  number;
+  roundTimer?:     ReturnType<typeof setTimeout>;
+  countdownTimer?: ReturnType<typeof setInterval>;
+}
+
+export type GameState = MenVsMenState | TrustBreakState | MafiaState | OutsiderState | CircleState | BombState | StopwatchState | UnoState | RpsState | CouchState | XoState | ReverseState;
 
 export const gameStates = new Map<number, GameState>();
 export const privateUserToGame = new Map<number, number>();
